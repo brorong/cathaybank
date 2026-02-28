@@ -1,154 +1,225 @@
-import os
-import sqlite3
-from flask import Flask, request, jsonify, render_template
-
-# ✅ 確保使用最新的官方 AI 套件
-from google import genai
-
-app = Flask(__name__)
-
-# ==========================================
-# 🤖 Gemini AI 初始化設定區
-# ==========================================
-# ⚠️ 資安防護：優先從環境變數抓取金鑰 (Render 雲端部署用)。
-# 如果抓不到(本機測試)，才使用您寫死在程式碼裡的測試金鑰。
-MY_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyAWruVtnHnfO6UDeyeHfXpretVzWn1O37k").strip()
-
-client = genai.Client(api_key=MY_API_KEY)
+import time
+from io import StringIO
+import pandas as pd
+from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import Select
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.common.exceptions import TimeoutException
+import gspread
+import sqlite3  # ✨ 新增 SQLite 套件
 
 
-# ==========================================
-# 📊 資料庫連線設定
-# ==========================================
-def get_db_connection():
-    conn = sqlite3.connect('cathay_funds.db')
-    conn.row_factory = sqlite3.Row
-    return conn
+def fetch_all_cathay_funds():
+    url = 'https://fund.cathaylife.com.tw/content.html?sUrl=$W$HTML$SELECT]DJHTM'
 
+    options = webdriver.ChromeOptions()
+    options.add_argument('--headless=new') # 雲端部署專用
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu')
 
-# ==========================================
-# 🌐 網頁與 API 路由設定
-# ==========================================
-@app.route('/')
-def index():
-    """載入前端網頁"""
-    return render_template('index.html')
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    all_funds_data = []
 
-
-@app.route('/api/products')
-def get_products():
-    """從資料庫撈取所有保險商品名稱 (供下拉選單與搜尋使用)"""
     try:
-        conn = get_db_connection()
-        products = conn.execute('SELECT DISTINCT 保險商品名稱 FROM funds WHERE 保險商品名稱 IS NOT NULL').fetchall()
-        conn.close()
-        return jsonify([dict(row)['保險商品名稱'] for row in products])
-    except sqlite3.OperationalError as e:
-        print(f"🚨 資料庫錯誤 (讀取保單清單): {e}")
-        return jsonify([]), 500
+        print("正在前往國泰人壽基金網頁...")
+        driver.get(url)
+        wait = WebDriverWait(driver, 15)
 
+        try:
+            wait.until(EC.frame_to_be_available_and_switch_to_it((By.TAG_NAME, "iframe")))
+        except TimeoutException:
+            print("❌ 找不到 iframe，請確認網頁結構。")
+            return None
 
-@app.route('/api/funds')
-def get_funds():
-    """根據商品名稱撈取對應的基金 (包含所有歷史績效)"""
-    product_name = request.args.get('product')
-    try:
-        conn = get_db_connection()
+        select_locator = (By.XPATH,
+                          "//select[option[contains(text(), '壽險') or contains(text(), '保險') or contains(text(), '請選擇')]]")
+        try:
+            wait.until(EC.presence_of_element_located(select_locator))
+        except TimeoutException:
+            print("\n❌ 找不到保險商品選單！")
+            return None
 
-        # ✅ 修復點 1：使用 `*` 撈取全部欄位，再用 Python 轉換名稱
-        # 這樣不管您的資料庫裡面叫做「代碼」還是「基金代碼」，前端都能正常接收！
-        query = 'SELECT * FROM funds WHERE 保險商品名稱 = ?'
-        rows = conn.execute(query, (product_name,)).fetchall()
-        conn.close()
+        select_element = driver.find_element(*select_locator)
+        select = Select(select_element)
 
-        funds_data = []
-        for row in rows:
-            fund_dict = dict(row)
-            # 動態補上前端需要的固定欄位名稱 (防呆機制)
-            fund_dict['基金代碼'] = fund_dict.get('基金代碼') or fund_dict.get('代碼', '')
-            fund_dict['基金名稱'] = fund_dict.get('基金名稱') or fund_dict.get('名稱', '')
-            funds_data.append(fund_dict)
+        exclude_words = [
+            '', '請選擇', '請選擇保險商品', '請選擇商品',
+            '--依風險等級查詢--', '--依保險商品名稱查詢--', '---請選擇---'
+        ]
+        product_names = [option.text.strip() for option in select.options if option.text.strip() not in exclude_words]
 
-        return jsonify(funds_data)
-        
-    except sqlite3.OperationalError as e:
-        print(f"🚨 資料庫錯誤 (讀取基金列表): {e}")
-        return jsonify([]), 500
+        print(f"✅ 共找到 {len(product_names)} 個保險商品，開始逐一爬取...\n")
 
+        for index, product in enumerate(product_names, 1):
+            print(f"[{index}/{len(product_names)}] 正在爬取：{product} ...")
 
-@app.route('/api/advice', methods=['POST'])
-def get_ai_advice():
-    """接收前端傳來的資料，調用 Gemini AI 產生配置建議"""
-    data = request.json
-    product_name = data.get('product')
-    strategy = data.get('strategy', '平衡')
-    fund_count = data.get('fundCount', 4)
-    funds_list = data.get('funds')
+            try:
+                current_select_element = driver.find_element(*select_locator)
+                current_select = Select(current_select_element)
+                current_select.select_by_visible_text(product)
 
-    # ==========================================
-    # 🧠 動態生成 AI 提示詞邏輯
-    # ==========================================
-    if strategy == "AI決定":
-        strategy_instruction = "請根據這些基金的「近1個月與近1年績效」，100% 由你自行判斷當下最適合的投資策略（要積極、平衡還是保守？），並在開頭向客戶說明你為何選擇這個策略。"
-        display_strategy = "專家動態調控"
+                time.sleep(3.5)
+
+                try:
+                    tab_xpath = "//a[@data-menutype='2' and contains(text(), '淨值/績效')]"
+                    target_tab = wait.until(EC.presence_of_element_located((By.XPATH, tab_xpath)))
+                    driver.execute_script("arguments[0].click();", target_tab)
+                    time.sleep(3)
+                except Exception:
+                    print(f"  └─ ⚠️ 找不到指定的「淨值/績效」分頁標籤")
+
+                try:
+                    length_select_elem = driver.find_element(By.NAME, "dataTbl_length")
+                    length_select = Select(length_select_elem)
+                    try:
+                        length_select.select_by_value("-1")
+                    except:
+                        try:
+                            length_select.select_by_value("all")
+                        except:
+                            length_select.select_by_index(len(length_select.options) - 1)
+                    time.sleep(2.5)
+                except Exception:
+                    pass
+
+                soup = BeautifulSoup(driver.page_source, 'html.parser')
+                target_table = None
+                for t in soup.find_all('table'):
+                    if '代碼' in t.text and ('一個月' in t.text or '報酬' in t.text):
+                        target_table = t
+                        break
+
+                if target_table:
+                    html_io = StringIO(str(target_table))
+                    df_list = pd.read_html(html_io)
+
+                    if df_list:
+                        df = df_list[0]
+                        
+                        # ==========================================
+                        # 🛠️ 終極修復區：先切除垃圾，再套用標題
+                        # ==========================================
+                        # 1. 壓平多層級標題，避免 Pandas 錯亂
+                        if isinstance(df.columns, pd.MultiIndex):
+                            df.columns = [str(col[-1]) if 'Unnamed' not in str(col[-1]) else str(col[0]) for col in df.columns]
+                            
+                        # 2. 雷達掃描：找出「代碼」這兩個字究竟在第幾個欄位
+                        code_idx = -1
+                        for i, col in enumerate(df.columns):
+                            if '代碼' in str(col):
+                                code_idx = i
+                                break
+                                
+                        if code_idx != -1:
+                            # 3. 完美切割：從「代碼」這欄開始，精準往右切下 11 個欄位！
+                            # 這樣不管原始表格有 12 欄還是 15 欄，我們都只留下我們要的 11 欄。
+                            df = df.iloc[:, code_idx : code_idx + 11]
+                            
+                            # 4. 因為現在確定只剩下 11 欄(或更少)，套用標準標題絕對不會報錯！
+                            standard_cols = ['基金代碼', '基金名稱', '一個月％', '三個月％', '六個月％', '今年來％', '一年％', '二年％', '三年％', '五年％', '成立來％']
+                            df.columns = standard_cols[:len(df.columns)]
+
+                        # ==========================================
+
+                        # 確保代碼欄位被當作字串讀取，避免開頭的 0 消失
+                        if '基金代碼' in df.columns:
+                            df['基金代碼'] = df['基金代碼'].astype(str)
+
+                        # 插入保單名稱作為第一欄
+                        df.insert(0, '保險商品名稱', product)
+                        all_funds_data.append(df)
+                        print(f"  └─ ✅ 成功取得 {len(df)} 筆基金績效資料\n")
+                    else:
+                        print("  └─ ⚠️ 無法解析表格內容\n")
+                else:
+                    print("  └─ ⚠️ 此商品查無表格資料\n")
+
+            except Exception as e:
+                print(f"  └─ ❌ 爬取 {product} 時發生錯誤：{e}\n")
+                continue
+
+    finally:
+        driver.quit()
+        print("\n網頁瀏覽器已關閉。")
+
+    if all_funds_data:
+        final_df = pd.concat(all_funds_data, ignore_index=True)
+        return final_df
     else:
-        strategy_instruction = f"""請根據客戶選擇的「{strategy}型」偏好進行配置：
-        - 積極型：大幅提高衛星部位(股票型/高成長)比例。
-        - 平衡型：核心(防禦)與衛星(攻擊)部位應相對均衡。
-        - 保守型：高度集中於核心部位(債券、收息、類全委帳戶)。"""
-        display_strategy = strategy
+        return None
 
-    if str(fund_count) == "AI決定":
-        count_instruction = "請完全自行決定最適合的「基金配置檔數」（建議落在 2~6 檔之間即可），以達到最佳投資效率，不需要湊滿特定數量。"
-        display_count = "最佳"
-    else:
-        count_instruction = f"【強制要求】請嚴格挑選出「剛好 {fund_count} 檔」最適合的基金，不可多也不可少！"
-        display_count = str(fund_count)
 
-    prompt = f"""
-    你現在是擁有10年經驗的「國泰基金投資專家」。
-    客戶持有的保險商品為：{product_name}。
-    該商品可選擇的基金標的，以及它們的「近期績效數據」如下：
+if __name__ == "__main__":
+    result_df = fetch_all_cathay_funds()
 
-    {funds_list}
+    if result_df is not None:
+        print(f"\n🎉 爬取完成！總共取得 {len(result_df)} 筆資料。")
 
-    任務與規則：
-    1. 只能從上述名單中挑選基金，嚴禁推薦名單外的標的。
-    2. {count_instruction}
-    3. 所有挑選出來的基金，配置比例(%) 總和必須剛好是 100%。
-    4. {strategy_instruction}
-    5. 說明入選原因時，必須具體引用提供的「近1個月」或「近1年」績效數據來佐證。
-    6. 語氣需極度親切、白話、尊榮。
-
-    7. 【高齡友善 HTML 排版強制要求】請依照以下 HTML 結構輸出：
-       <h3 class="advice-title">💡 您的【{display_strategy}型】專屬投資配置建議 (共 {display_count} 檔)</h3>
-       <p class="intro-text">根據您目前的保單與最新市場動能，為您精選了以下標的：</p>
-
-       <div class="allocation-card core">
-           <div class="badge">🛡️ 核心穩健配置 (或 🚀 衛星成長配置)</div>
-           <h4>基金名稱 (建議佔比 X%)</h4>
-           <p><strong>推薦原因：</strong> (說明原因與引用的績效數據)</p>
-       </div>
-
-       <div class="warm-reminder">
-           <strong>👨‍💼 專家溫馨提醒：</strong> (結語，提醒投資均有風險)
-       </div>
-    """
-
-    try:
-        print(f"💡 傳送資料給 AI (策略:{strategy} / 檔數:{fund_count})...")
+        # ==========================================
+        # 🧹 第一階段：資料清洗 (Data Cleaning)
+        # ==========================================
+        print("\n開始進行資料清洗...")
         
-        # ✅ 修復點 2：使用官方最穩定支援的模型名稱
-        response = client.models.generate_content(
-            model='gemini-2.5-flash-lite',
-            contents=prompt
-        )
-        print("✅ AI 分析完成！準備回傳至前端。")
-        return jsonify({"advice": response.text})
+        # 深度清理字串內容：去除隱藏的頭尾空白
+        for col in ['保險商品名稱', '基金代碼', '基金名稱']:
+            if col in result_df.columns:
+                result_df[col] = result_df[col].astype(str).str.strip()
 
-    except Exception as e:
-        print("🚨 後台捕捉到 AI 連線錯誤：", e)
-        return jsonify({"error": str(e)}), 500
+        # 將 NaN 替換為空字串，確保寫入資料庫與 Sheets 時不會報錯
+        result_df = result_df.fillna('')
+        print("✅ 資料清洗完畢。")
 
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+        # ==========================================
+        # 💾 第二階段：備份至本地端 CSV
+        # ==========================================
+        csv_filename = "Cathay_Performance_Funds_All.csv"
+        result_df.to_csv(csv_filename, index=False, encoding="utf-8-sig")
+        print(f"📁 資料已備份至本地 CSV：{csv_filename}")
+
+        # ==========================================
+        # 🗄️ 第三階段：寫入 SQLite 資料庫
+        # ==========================================
+        db_name = 'cathay_funds.db'
+        print(f"正在將資料存入 SQLite ({db_name})...")
+        try:
+            conn = sqlite3.connect(db_name)
+            result_df.to_sql('funds', conn, if_exists='replace', index=False)
+            conn.commit()
+            conn.close()
+            print(f"✅ SQLite 建置完成！資料已寫入 'funds' 資料表。")
+        except Exception as e:
+            print(f"❌ 寫入 SQLite 時發生錯誤：{e}")
+
+        # ==========================================
+        # 🚀 第四階段：寫入 Google Sheets
+        # ==========================================
+        print("正在連線至 Google Sheets...")
+        try:
+            gc = gspread.service_account(filename='credentials.json')
+            spreadsheet = gc.open('國泰人壽基金績效表')
+            worksheet = spreadsheet.sheet1
+
+            worksheet.clear()
+
+            header = result_df.columns.values.tolist()
+            data_values = result_df.values.tolist()
+            data_to_upload = [header] + data_values
+
+            worksheet.update(values=data_to_upload, range_name='A1')
+            print("✅ 成功！所有資料已同步至 Google Sheets。")
+
+        except FileNotFoundError:
+            print("❌ 找不到 credentials.json 檔案！")
+        except gspread.exceptions.SpreadsheetNotFound:
+            print("❌ 找不到指定的 Google 試算表，請確認名稱與共用權限！")
+        except Exception as e:
+            print(f"❌ 寫入 Google Sheets 時發生錯誤：{e}")
+
+    else:
+        print("\n❌ 未能取得任何資料。")
