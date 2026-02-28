@@ -117,7 +117,7 @@ def fetch_all_cathay_funds():
                         df = df_list[0]
                         
                         # ==========================================
-                        # 🛠️ 終極修復：智能語意翻譯，確保欄位一滴不漏！
+                        # 🛠️ 終極修復：超寬容字典 + 強制補齊防呆機制
                         # ==========================================
                         # 1. 安全解開多層合併儲存格
                         if isinstance(df.columns, pd.MultiIndex):
@@ -126,28 +126,34 @@ def fetch_all_cathay_funds():
                         # 2. 清除網頁標題隱藏的空白與換行符號
                         df.columns = [str(c).strip().replace('\n', '').replace('"', '') for c in df.columns]
 
-                        # 3. 建立「智能翻譯字典」，把網頁亂七八糟的名字，強制轉換成資料庫要的標準名字
+                        # 3. 升級版「智能翻譯字典」，支援「兩年」、「2年」等各種網頁異體字
                         rename_dict = {}
                         for col in df.columns:
                             if '代碼' in col: rename_dict[col] = '基金代碼'
                             elif '名稱' in col and '保險' not in col: rename_dict[col] = '基金名稱'
-                            elif '一個月' in col or '1個月' in col: rename_dict[col] = '一個月％'
-                            elif '三個月' in col or '3個月' in col: rename_dict[col] = '三個月％'
-                            elif '六個月' in col or '6個月' in col: rename_dict[col] = '六個月％'
+                            elif '一' in col and '月' in col or '1個月' in col: rename_dict[col] = '一個月％'
+                            elif '三' in col and '月' in col or '3個月' in col: rename_dict[col] = '三個月％'
+                            elif '六' in col and '月' in col or '6個月' in col: rename_dict[col] = '六個月％'
                             elif '今年' in col: rename_dict[col] = '今年來％'
-                            elif '一年' in col or '1年' in col: rename_dict[col] = '一年％'
-                            elif '二年' in col or '2年' in col: rename_dict[col] = '二年％'
-                            elif '三年' in col or '3年' in col: rename_dict[col] = '三年％'
-                            elif '五年' in col or '5年' in col: rename_dict[col] = '五年％'
+                            elif '一' in col and '年' in col or '1年' in col: rename_dict[col] = '一年％'
+                            elif ('二' in col or '兩' in col or '2' in col) and '年' in col: rename_dict[col] = '二年％'
+                            elif ('三' in col or '3' in col) and '年' in col: rename_dict[col] = '三年％'
+                            elif ('五' in col or '5' in col) and '年' in col: rename_dict[col] = '五年％'
                             elif '成立' in col: rename_dict[col] = '成立來％'
 
                         # 套用翻譯字典
                         df = df.rename(columns=rename_dict)
 
-                        # 4. 完美過濾：只留下我們規定的 11 個標準欄位，其餘垃圾丟棄
+                        # 4. 【關鍵修復】強制檢查 11 個標準欄位是否存在
                         standard_cols = ['基金代碼', '基金名稱', '一個月％', '三個月％', '六個月％', '今年來％', '一年％', '二年％', '三年％', '五年％', '成立來％']
-                        keep_cols = [c for c in standard_cols if c in df.columns]
-                        df = df[keep_cols]
+                        
+                        for c in standard_cols:
+                            if c not in df.columns:
+                                # 如果網頁真的沒給這個欄位 (例如新基金沒 3 年績效)，我們主動補上空字串
+                                df[c] = ''
+                        
+                        # 5. 只留下這 11 個欄位，確保資料庫形狀 100% 完美
+                        df = df[standard_cols]
 
                         # 確保代碼欄位被當作字串讀取
                         if '基金代碼' in df.columns:
@@ -183,28 +189,19 @@ if __name__ == "__main__":
     if result_df is not None:
         print(f"\n🎉 爬取完成！總共取得 {len(result_df)} 筆資料。", flush=True)
 
-        # ==========================================
-        # 🧹 第一階段：資料清洗 (Data Cleaning)
-        # ==========================================
         print("\n開始進行資料清洗...", flush=True)
         for col in ['保險商品名稱', '基金代碼', '基金名稱']:
             if col in result_df.columns:
                 result_df[col] = result_df[col].astype(str).str.strip()
 
-        # 將 NaN 替換為空字串
-        result_df = result_df.fillna('')
+        # 將 NaN 替換為空字串 ('-') 讓前端顯示比較漂亮
+        result_df = result_df.fillna('-')
         print("✅ 資料清洗完畢。", flush=True)
 
-        # ==========================================
-        # 💾 第二階段：備份至本地端 CSV
-        # ==========================================
         csv_filename = "Cathay_Performance_Funds_All.csv"
         result_df.to_csv(csv_filename, index=False, encoding="utf-8-sig")
         print(f"📁 資料已備份至本地 CSV：{csv_filename}", flush=True)
 
-        # ==========================================
-        # 🗄️ 第三階段：寫入 SQLite 資料庫
-        # ==========================================
         db_name = 'cathay_funds.db'
         print(f"正在將資料存入 SQLite ({db_name})...", flush=True)
         try:
@@ -212,13 +209,10 @@ if __name__ == "__main__":
             result_df.to_sql('funds', conn, if_exists='replace', index=False)
             conn.commit()
             conn.close()
-            print(f"✅ SQLite 建置完成！所有的績效欄位都已完整寫入。")
+            print(f"✅ SQLite 建置完成！【全部 11 個績效欄位】都已完整寫入。")
         except Exception as e:
             print(f"❌ 寫入 SQLite 時發生錯誤：{e}", flush=True)
 
-        # ==========================================
-        # 🚀 第四階段：寫入 Google Sheets
-        # ==========================================
         print("正在連線至 Google Sheets...", flush=True)
         try:
             gc = gspread.service_account(filename='credentials.json')
