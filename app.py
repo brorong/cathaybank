@@ -111,7 +111,11 @@ def get_ai_advice():
     該商品可選擇的基金標的，以及它們的「近期績效數據」如下：
 
     {funds_list}
-
+    
+    核心績效評估：
+    1.找出在**三年％報酬率中排名前 10%，且一年％績效也排名前 15% 的「長期贏家」**基金名單。
+    2.找出在**二年％、五年％表現相對穩健，但一年％和今年來％跌幅最小的「抗跌/穩健」**基金名單。
+    
     任務與規則：
     1. 只能從上述名單中挑選基金，嚴禁推薦名單外的標的。
     2. {count_instruction}
@@ -119,7 +123,7 @@ def get_ai_advice():
     4. {strategy_instruction}
     5. 說明入選原因時，必須具體引用提供的「近1個月」或「近1年」績效數據來佐證。
     6. 語氣需極度親切、白話、尊榮。
-
+    
     7. 【高齡友善 HTML 排版強制要求】請依照以下 HTML 結構輸出：
        <h3 class="advice-title">💡 您的【{display_strategy}型】專屬投資配置建議 (共 {display_count} 檔)</h3>
        <p class="intro-text">根據您目前的保單與最新市場動能，為您精選了以下標的：</p>
@@ -152,4 +156,5 @@ def get_ai_advice():
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
+
 
