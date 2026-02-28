@@ -22,6 +22,8 @@ def fetch_all_cathay_funds():
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
+    # ✨ 關鍵修復：把背景視窗強制撐到超大！破解 RWD 隱藏欄位的封印！
+    options.add_argument('--window-size=2560,1440') 
 
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     all_funds_data = []
@@ -116,52 +118,44 @@ def fetch_all_cathay_funds():
                     if df_list:
                         df = df_list[0]
                         
-                        # ==========================================
-                        # 🛠️ 終極修復：座標定位強制命名法 (無視 Unnamed 垃圾標題)
-                        # ==========================================
                         # 1. 安全解開多層合併儲存格
                         if isinstance(df.columns, pd.MultiIndex):
-                            df.columns = [''.join(str(x) for x in col) for col in df.columns]
-
-                        # 2. 尋找「代碼」這兩個字的確切座標 (索引值)
-                        code_idx = -1
-                        for i, col in enumerate(df.columns):
-                            if '代碼' in str(col):
-                                code_idx = i
-                                break
-
-                        if code_idx != -1:
-                            # 3. 建立標準的 11 個欄位名稱
-                            standard_cols = ['基金代碼', '基金名稱', '一個月％', '三個月％', '六個月％', '今年來％', '一年％', '二年％', '三年％', '五年％', '成立來％']
-                            rename_dict = {}
+                            df.columns = [str(col[-1]) for col in df.columns]
                             
-                            # 4. 【大絕招】從「代碼」的位置開始，往右數 11 格，硬生生把標題蓋上去！
-                            # 這樣就算是 Unnamed，也會乖乖變成我們要的「二年％、三年％」
-                            for i in range(min(11, len(df.columns) - code_idx)):
-                                old_col_name = df.columns[code_idx + i]
-                                rename_dict[old_col_name] = standard_cols[i]
-                                
-                            df = df.rename(columns=rename_dict)
+                        # 2. 清除網頁標題隱藏的空白與換行符號
+                        df.columns = [str(c).strip().replace('\n', '').replace('"', '') for c in df.columns]
 
-                            # 5. 過濾掉這 11 格以外的隱藏垃圾欄位
-                            keep_cols = [c for c in standard_cols if c in df.columns]
-                            df = df[keep_cols]
+                        # 3. 升級版「智能翻譯字典」，確保對齊
+                        rename_dict = {}
+                        for col in df.columns:
+                            if '代碼' in col: rename_dict[col] = '基金代碼'
+                            elif '名稱' in col and '保險' not in col: rename_dict[col] = '基金名稱'
+                            elif '一' in col and '月' in col or '1個月' in col: rename_dict[col] = '一個月％'
+                            elif '三' in col and '月' in col or '3個月' in col: rename_dict[col] = '三個月％'
+                            elif '六' in col and '月' in col or '6個月' in col: rename_dict[col] = '六個月％'
+                            elif '今年' in col: rename_dict[col] = '今年來％'
+                            elif '一' in col and '年' in col or '1年' in col: rename_dict[col] = '一年％'
+                            elif ('二' in col or '兩' in col or '2' in col) and '年' in col: rename_dict[col] = '二年％'
+                            elif ('三' in col or '3' in col) and '年' in col: rename_dict[col] = '三年％'
+                            elif ('五' in col or '5' in col) and '年' in col: rename_dict[col] = '五年％'
+                            elif '成立' in col: rename_dict[col] = '成立來％'
 
-                            # 6. 防呆補齊：如果原始表格根本不到 11 欄，主動補上空字串
-                            for c in standard_cols:
-                                if c not in df.columns:
-                                    df[c] = ''
-                                    
-                            # 確保資料庫欄位順序 100% 正確
-                            df = df[standard_cols]
+                        # 套用翻譯字典
+                        df = df.rename(columns=rename_dict)
 
-                        # ==========================================
+                        # 4. 強制檢查並過濾 11 個標準欄位
+                        standard_cols = ['基金代碼', '基金名稱', '一個月％', '三個月％', '六個月％', '今年來％', '一年％', '二年％', '三年％', '五年％', '成立來％']
+                        
+                        for c in standard_cols:
+                            if c not in df.columns:
+                                df[c] = ''
+                        
+                        # 確保形狀與順序完美
+                        df = df[standard_cols]
 
-                        # 確保代碼欄位被當作字串讀取
                         if '基金代碼' in df.columns:
                             df['基金代碼'] = df['基金代碼'].astype(str)
 
-                        # 插入保單名稱作為第一欄
                         df.insert(0, '保險商品名稱', product)
                         all_funds_data.append(df)
                         print(f"  └─ ✅ 成功取得 {len(df)} 筆基金績效資料\n", flush=True)
