@@ -10,7 +10,6 @@
            ========================================= */
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background: #f4f7f6; color: #222; }
         
-        /* 🛠️ 關鍵修復：移除了 overflow-x: auto; 讓下拉選單可以自由跨越邊界！ */
         .card { background: white; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
         
         label { font-size: 18px; font-weight: bold; color: #333; display: block; margin-bottom: 8px; }
@@ -35,7 +34,7 @@
             background: white;
             border: 2px solid #00843E;
             border-radius: 8px;
-            z-index: 9999; /* 把層級拉到最高，確保絕對不會被擋住 */
+            z-index: 9999; 
             box-shadow: 0 8px 16px rgba(0,0,0,0.15);
             margin-top: 5px;
             padding: 0;
@@ -54,7 +53,7 @@
             font-weight: bold;
         }
 
-        /* 🛠️ 關鍵修復：把滑動條專門做給表格使用，不影響上面的卡片 */
+        /* 確保表格滑動不干擾其他介面 */
         .table-responsive { overflow-x: auto; margin-top: 15px; border-radius: 8px; }
         
         table { width: 100%; border-collapse: collapse; min-width: 900px; font-size: 16px; }
@@ -90,7 +89,10 @@
         
         <div style="position: relative; margin-top: 5px;">
             <div style="display: flex; align-items: center; position: relative;">
-                <input type="text" id="productInput" placeholder="⏳ 系統連線中，請稍候..." autocomplete="off" style="margin-top: 0; padding-right: 90px;">
+                <input type="text" id="productInput" placeholder="⏳ 系統連線中，請稍候..." autocomplete="off" 
+                       onchange="loadFunds()" 
+                       onkeydown="if(event.key === 'Enter') { document.getElementById('customDropdown').style.display='none'; loadFunds(); }" 
+                       style="margin-top: 0; padding-right: 90px;">
                 
                 <div style="position: absolute; right: 10px; display: flex; gap: 8px;">
                     <button id="clearBtn" onclick="clearProductInput()" style="width: 38px; height: 38px; margin: 0; padding: 0; background: #f4f7f6; color: #888; border-radius: 50%; display: none; box-shadow: none; font-size: 16px; border: 1px solid #ddd;" title="清除文字">✖</button>
@@ -159,7 +161,6 @@
         let isDescending = true;
         let allProductsList = []; 
 
-        // 1. 初始化與下拉選單邏輯
         window.onload = async () => {
             const inputField = document.getElementById('productInput');
             try {
@@ -191,7 +192,7 @@
                     document.getElementById('productInput').value = p;
                     ul.style.display = 'none';
                     checkClearBtn();
-                    loadFunds(); 
+                    loadFunds(); // 點擊選項時載入
                 };
                 ul.appendChild(li);
             });
@@ -206,6 +207,189 @@
             } else {
                 renderDropdownList(allProductsList); 
                 ul.style.display = 'block';
+                input.focus();
+            }
+        }
+
+        document.getElementById('productInput').addEventListener('input', function() {
+            checkClearBtn();
+            const keyword = this.value.trim().toLowerCase();
+            const filtered = allProductsList.filter(p => p.toLowerCase().includes(keyword));
+            renderDropdownList(filtered);
+            document.getElementById('customDropdown').style.display = 'block';
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!event.target.closest('#customDropdown') && event.target.id !== 'productInput' && event.target.id !== 'toggleBtn') {
+                document.getElementById('customDropdown').style.display = 'none';
+            }
+        });
+
+        document.getElementById('productInput').addEventListener('focus', function() {
+            if (this.value === '') {
+                renderDropdownList(allProductsList);
+                document.getElementById('customDropdown').style.display = 'block';
+            }
+        });
+
+        function checkClearBtn() {
+            const input = document.getElementById('productInput');
+            const btn = document.getElementById('clearBtn');
+            btn.style.display = input.value.length > 0 ? 'block' : 'none';
+        }
+
+        function clearProductInput() {
+            const input = document.getElementById('productInput');
+            input.value = '';
+            document.getElementById('clearBtn').style.display = 'none';
+            document.getElementById('fundSection').style.display = 'none';
+            renderDropdownList(allProductsList);
+            document.getElementById('customDropdown').style.display = 'block';
+            input.focus();
+        }
+
+        function toggleAutoMode() {
+            const isAuto = document.getElementById('aiAutoMode').checked;
+            const strategySelect = document.getElementById('strategySelect');
+            const fundCountInput = document.getElementById('fundCountInput');
+            const aiButton = document.getElementById('aiButton');
+
+            if (isAuto) {
+                strategySelect.disabled = true;
+                fundCountInput.disabled = true;
+                strategySelect.style.backgroundColor = '#f0f0f0';
+                fundCountInput.style.backgroundColor = '#f0f0f0';
+                aiButton.innerText = "🚀 啟動 AI 全權委託分析";
+            } else {
+                strategySelect.disabled = false;
+                fundCountInput.disabled = false;
+                strategySelect.style.backgroundColor = '#fff';
+                fundCountInput.style.backgroundColor = '#fff';
+                aiButton.innerText = "🤖 綜合以上條件，產生專屬配置建議";
+            }
+        }
+
+        async function loadFunds() {
+            const product = document.getElementById('productInput').value;
+            if (!product) return;
+
+            try {
+                const res = await fetch(`/api/funds?product=${encodeURIComponent(product)}`);
+                currentFunds = await res.json();
+                
+                currentSortKey = '一個月％';
+                isDescending = true;
+                renderTable(); 
+                
+                // 確保讀取完畢後，將表格區塊顯示出來
+                document.getElementById('fundSection').style.display = 'block';
+                document.getElementById('aiAdvice').style.display = 'none';
+            } catch (error) { 
+                console.error("載入基金失敗:", error); 
+            }
+        }
+
+        function sortBy(key) {
+            if (currentSortKey === key) {
+                isDescending = !isDescending;
+            } else {
+                currentSortKey = key;
+                isDescending = true;
+            }
+            renderTable();
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('fundTableBody');
+            tbody.innerHTML = '';
+
+            if (currentFunds.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; color:#d9534f; font-weight:bold;">找不到關聯基金。</td></tr>';
+                return;
+            }
+
+            let sortedFunds = [...currentFunds];
+            sortedFunds.sort((a, b) => {
+                let valA = a[currentSortKey];
+                let valB = b[currentSortKey];
+
+                if (currentSortKey.includes('％') || currentSortKey.includes('月') || currentSortKey.includes('年')) {
+                    let numA = parseFloat(valA);
+                    let numB = parseFloat(valB);
+                    if (isNaN(numA)) numA = -999999;
+                    if (isNaN(numB)) numB = -999999;
+                    return isDescending ? (numB - numA) : (numA - numB);
+                } else {
+                    valA = valA || '';
+                    valB = valB || '';
+                    return isDescending ? valB.localeCompare(valA) : valA.localeCompare(valB);
+                }
+            });
+
+            sortedFunds.forEach(f => {
+                tbody.innerHTML += `<tr>
+                    <td><strong>${f['基金代碼']}</strong></td>
+                    <td>${f['基金名稱']}</td>
+                    <td>${f['一個月％'] || '-'}</td>
+                    <td>${f['三個月％'] || '-'}</td>
+                    <td>${f['六個月％'] || '-'}</td>
+                    <td>${f['今年來％'] || '-'}</td>
+                    <td>${f['一年％'] || '-'}</td>
+                    <td>${f['二年％'] || '-'}</td>
+                    <td>${f['三年％'] || '-'}</td>
+                    <td>${f['五年％'] || '-'}</td>
+                    <td style="color:#d9534f; font-weight:bold;">${f['成立來％'] || '-'}</td>
+                </tr>`;
+            });
+        }
+
+        async function getAIAdvice() {
+            const adviceDiv = document.getElementById('aiAdvice');
+            const aiButton = document.getElementById('aiButton');
+            const isAuto = document.getElementById('aiAutoMode').checked;
+            
+            adviceDiv.style.display = 'block';
+            adviceDiv.innerHTML = "<em>⏳ 專家 AI 正在讀取龐大市場數據進行深度運算，請稍候 (約 5~10 秒)...</em>";
+            
+            aiButton.disabled = true;
+            aiButton.innerText = "分析中，請稍候...";
+
+            const fundDataForAI = currentFunds.map(f => {
+                return `- ${f['基金代碼']} ${f['基金名稱']} | 近1個月:${f['一個月％']}% | 近6個月:${f['六個月％']}% | 近1年:${f['一年％']}% | 成立來:${f['成立來％']}%`;
+            }).join('\n');
+
+            const payload = {
+                product: document.getElementById('productInput').value,
+                strategy: isAuto ? "AI決定" : document.getElementById('strategySelect').value,
+                fundCount: isAuto ? "AI決定" : document.getElementById('fundCountInput').value,
+                funds: fundDataForAI
+            };
+
+            try {
+                const res = await fetch('/api/advice', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+
+                if(data.advice) {
+                    adviceDiv.innerHTML = data.advice;
+                } else {
+                    adviceDiv.innerHTML = "<span style='color:red;'>⚠️ 分析失敗，請檢查系統日誌。</span>";
+                }
+            } catch (error) {
+                console.error("AI 分析失敗:", error);
+                adviceDiv.innerHTML = "<span style='color:red;'>⚠️ 無法連線至 AI 伺服器，請稍後再試。</span>";
+            } finally {
+                aiButton.disabled = false;
+                aiButton.innerText = isAuto ? "🚀 重新啟動 AI 全權委託分析" : "🤖 重新產生 AI 專屬配置建議";
+            }
+        }
+    </script>
+</body>
+</html>
+e.display = 'block';
                 input.focus();
             }
         }
