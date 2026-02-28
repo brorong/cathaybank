@@ -20,7 +20,7 @@ def fetch_all_cathay_funds():
     options = webdriver.ChromeOptions()
     options.add_argument('--headless=new')
     options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage') # 解決雲端記憶體不足的關鍵指令
+    options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
 
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
@@ -58,9 +58,7 @@ def fetch_all_cathay_funds():
         for index, product in enumerate(product_names, 1):
             print(f"[{index}/{len(product_names)}] 正在爬取：{product} ...", flush=True)
 
-            # ==========================================
-            # 🛡️ 防卡死機制：每爬 15 個商品，就重整網頁洗掉記憶體垃圾
-            # ==========================================
+            # 防卡死機制：每爬 15 個商品，重整網頁釋放記憶體
             if index > 1 and index % 15 == 0:
                 print("  └─ 🔄 [系統排毒] 重新載入網頁，釋放瀏覽器記憶體...", flush=True)
                 try:
@@ -71,7 +69,6 @@ def fetch_all_cathay_funds():
                     print(f"  └─ ⚠️ 重整網頁失敗，嘗試繼續... ({e})", flush=True)
 
             try:
-                # 🛡️ 防禦機制 2：清除可能導致卡住的隱藏網頁警告視窗 (Alert)
                 try:
                     driver.switch_to.alert.accept()
                 except:
@@ -119,19 +116,44 @@ def fetch_all_cathay_funds():
                     if df_list:
                         df = df_list[0]
                         
+                        # ==========================================
+                        # 🛠️ 終極修復：智能語意翻譯，確保欄位一滴不漏！
+                        # ==========================================
+                        # 1. 安全解開多層合併儲存格
                         if isinstance(df.columns, pd.MultiIndex):
                             df.columns = [str(col[-1]) for col in df.columns]
                             
+                        # 2. 清除網頁標題隱藏的空白與換行符號
                         df.columns = [str(c).strip().replace('\n', '').replace('"', '') for c in df.columns]
-                        df = df.rename(columns={'代碼': '基金代碼', '名稱': '基金名稱'})
 
+                        # 3. 建立「智能翻譯字典」，把網頁亂七八糟的名字，強制轉換成資料庫要的標準名字
+                        rename_dict = {}
+                        for col in df.columns:
+                            if '代碼' in col: rename_dict[col] = '基金代碼'
+                            elif '名稱' in col and '保險' not in col: rename_dict[col] = '基金名稱'
+                            elif '一個月' in col or '1個月' in col: rename_dict[col] = '一個月％'
+                            elif '三個月' in col or '3個月' in col: rename_dict[col] = '三個月％'
+                            elif '六個月' in col or '6個月' in col: rename_dict[col] = '六個月％'
+                            elif '今年' in col: rename_dict[col] = '今年來％'
+                            elif '一年' in col or '1年' in col: rename_dict[col] = '一年％'
+                            elif '二年' in col or '2年' in col: rename_dict[col] = '二年％'
+                            elif '三年' in col or '3年' in col: rename_dict[col] = '三年％'
+                            elif '五年' in col or '5年' in col: rename_dict[col] = '五年％'
+                            elif '成立' in col: rename_dict[col] = '成立來％'
+
+                        # 套用翻譯字典
+                        df = df.rename(columns=rename_dict)
+
+                        # 4. 完美過濾：只留下我們規定的 11 個標準欄位，其餘垃圾丟棄
                         standard_cols = ['基金代碼', '基金名稱', '一個月％', '三個月％', '六個月％', '今年來％', '一年％', '二年％', '三年％', '五年％', '成立來％']
                         keep_cols = [c for c in standard_cols if c in df.columns]
                         df = df[keep_cols]
 
+                        # 確保代碼欄位被當作字串讀取
                         if '基金代碼' in df.columns:
                             df['基金代碼'] = df['基金代碼'].astype(str)
 
+                        # 插入保單名稱作為第一欄
                         df.insert(0, '保險商品名稱', product)
                         all_funds_data.append(df)
                         print(f"  └─ ✅ 成功取得 {len(df)} 筆基金績效資料\n", flush=True)
@@ -161,18 +183,28 @@ if __name__ == "__main__":
     if result_df is not None:
         print(f"\n🎉 爬取完成！總共取得 {len(result_df)} 筆資料。", flush=True)
 
+        # ==========================================
+        # 🧹 第一階段：資料清洗 (Data Cleaning)
+        # ==========================================
         print("\n開始進行資料清洗...", flush=True)
         for col in ['保險商品名稱', '基金代碼', '基金名稱']:
             if col in result_df.columns:
                 result_df[col] = result_df[col].astype(str).str.strip()
 
+        # 將 NaN 替換為空字串
         result_df = result_df.fillna('')
         print("✅ 資料清洗完畢。", flush=True)
 
+        # ==========================================
+        # 💾 第二階段：備份至本地端 CSV
+        # ==========================================
         csv_filename = "Cathay_Performance_Funds_All.csv"
         result_df.to_csv(csv_filename, index=False, encoding="utf-8-sig")
         print(f"📁 資料已備份至本地 CSV：{csv_filename}", flush=True)
 
+        # ==========================================
+        # 🗄️ 第三階段：寫入 SQLite 資料庫
+        # ==========================================
         db_name = 'cathay_funds.db'
         print(f"正在將資料存入 SQLite ({db_name})...", flush=True)
         try:
@@ -180,10 +212,13 @@ if __name__ == "__main__":
             result_df.to_sql('funds', conn, if_exists='replace', index=False)
             conn.commit()
             conn.close()
-            print(f"✅ SQLite 建置完成！資料已寫入 'funds' 資料表。", flush=True)
+            print(f"✅ SQLite 建置完成！所有的績效欄位都已完整寫入。")
         except Exception as e:
             print(f"❌ 寫入 SQLite 時發生錯誤：{e}", flush=True)
 
+        # ==========================================
+        # 🚀 第四階段：寫入 Google Sheets
+        # ==========================================
         print("正在連線至 Google Sheets...", flush=True)
         try:
             gc = gspread.service_account(filename='credentials.json')
@@ -195,7 +230,13 @@ if __name__ == "__main__":
             data_to_upload = [header] + data_values
             worksheet.update(values=data_to_upload, range_name='A1')
             print("✅ 成功！所有資料已同步至 Google Sheets。", flush=True)
+
+        except FileNotFoundError:
+            print("❌ 找不到 credentials.json 檔案！", flush=True)
+        except gspread.exceptions.SpreadsheetNotFound:
+            print("❌ 找不到指定的 Google 試算表，請確認名稱與共用權限！", flush=True)
         except Exception as e:
             print(f"❌ 寫入 Google Sheets 時發生錯誤：{e}", flush=True)
+
     else:
         print("\n❌ 未能取得任何資料。", flush=True)
