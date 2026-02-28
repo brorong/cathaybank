@@ -2,12 +2,12 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>國泰基金 AI 投資顧問系統</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>國泰基金 AI 投資顧問系統</title>
     <style>
         /* =========================================
            🎨 全域與長輩友善基礎設定
            ========================================= */
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background: #f4f7f6; color: #222; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background: #f4f7f6; color: #222; }
         .card { background: white; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); overflow-x: auto; }
         
         label { font-size: 18px; font-weight: bold; color: #333; display: block; margin-bottom: 8px; }
@@ -20,6 +20,37 @@
         button:hover { background: #006b32; transform: translateY(-2px); }
         button:disabled { background: #999; cursor: not-allowed; transform: none; box-shadow: none; }
         
+        /* =========================================
+           ✨ 新增：手機完美相容的自訂下拉選單樣式
+           ========================================= */
+        .dropdown-list {
+            display: none;
+            position: absolute;
+            width: 100%;
+            max-height: 350px;
+            overflow-y: auto;
+            background: white;
+            border: 2px solid #00843E;
+            border-radius: 8px;
+            z-index: 1000;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+            margin-top: 5px;
+            padding: 0;
+            list-style: none;
+        }
+        .dropdown-list li {
+            padding: 15px; /* 加大觸控範圍，對手機更友善 */
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+            font-size: 18px;
+            color: #333;
+        }
+        .dropdown-list li:hover, .dropdown-list li:active {
+            background-color: #E8F5E9;
+            color: #00843E;
+            font-weight: bold;
+        }
+
         /* 表格與動態排序視覺 */
         table { width: 100%; border-collapse: collapse; margin-top: 15px; min-width: 900px; font-size: 16px; }
         th, td { border: 1px solid #ddd; padding: 12px; text-align: right; }
@@ -28,9 +59,7 @@
         th::after { content: " ↕"; font-size: 14px; opacity: 0.6; }
         td:nth-child(1), td:nth-child(2) { text-align: left; }
         
-        /* =========================================
-           ✨ AI 建議區塊 (大字體、高對比、卡片化)
-           ========================================= */
+        /* AI 建議區塊 */
         #aiAdvice { display: none; background: #fff; padding: 10px; margin-top: 25px; line-height: 1.8; font-size: 18px; color: #333; }
         .advice-title { color: #00843E; font-size: 26px; border-bottom: 3px solid #00843E; padding-bottom: 10px; margin-top: 0; }
         .intro-text { font-size: 20px; font-weight: bold; margin-bottom: 20px; }
@@ -54,11 +83,17 @@
     <div class="card">
         <label for="productInput"><strong>🔍 第一步：搜尋或選擇保險商品：</strong></label>
         
-        <div style="position: relative; display: flex; align-items: center; margin-top: 5px;">
-            <input type="text" id="productInput" list="productList" placeholder="⏳ 系統連線中，請稍候..." oninput="checkClearBtn()" onchange="loadFunds()" style="margin-top: 0; padding-right: 50px;">
-            <button id="clearBtn" onclick="clearProductInput()" style="position: absolute; right: 10px; width: 35px; height: 35px; margin: 0; padding: 0; background: #f4f7f6; color: #888; border-radius: 50%; display: none; box-shadow: none; font-size: 16px; border: 1px solid #ddd;" title="清除文字">✖</button>
+        <div style="position: relative; margin-top: 5px;">
+            <div style="display: flex; align-items: center; position: relative;">
+                <input type="text" id="productInput" placeholder="⏳ 系統連線中，請稍候..." autocomplete="off" style="margin-top: 0; padding-right: 90px;">
+                
+                <div style="position: absolute; right: 10px; display: flex; gap: 8px;">
+                    <button id="clearBtn" onclick="clearProductInput()" style="width: 38px; height: 38px; margin: 0; padding: 0; background: #f4f7f6; color: #888; border-radius: 50%; display: none; box-shadow: none; font-size: 16px; border: 1px solid #ddd;" title="清除文字">✖</button>
+                    <button id="toggleBtn" onclick="toggleDropdown(event)" style="width: 38px; height: 38px; margin: 0; padding: 0; background: #00843E; color: white; border-radius: 8px; box-shadow: none; font-size: 16px; border: none;" title="展開完整選單">▼</button>
+                </div>
+            </div>
+            <ul id="customDropdown" class="dropdown-list"></ul>
         </div>
-        <datalist id="productList"></datalist>
         
         <br><br>
         
@@ -80,7 +115,7 @@
         <div style="background-color: #E8F5E9; padding: 18px; border-radius: 8px; margin-top: 20px; border: 2px solid #4CAF50;">
             <label style="display: flex; align-items: center; cursor: pointer; margin: 0;">
                 <input type="checkbox" id="aiAutoMode" onchange="toggleAutoMode()" style="width: 25px; height: 25px; margin-right: 15px; cursor: pointer;">
-                <span style="font-size: 18px; font-weight: bold; color: #00843E;">🤖 啟用「AI 全權委託模式」 (由系統 100% 根據市場績效決定最佳策略與檔數)</span>
+                <span style="font-size: 18px; font-weight: bold; color: #00843E;">🤖 啟用「AI 全權委託模式」</span>
             </label>
         </div>
     </div>
@@ -114,9 +149,10 @@
         let currentFunds = [];
         let currentSortKey = '一個月％';
         let isDescending = true;
+        let allProductsList = []; // 儲存所有的保單名稱
 
         // ==========================================
-        // 1. 初始化與 UI 互動邏輯
+        // 1. 初始化與下拉選單邏輯 (手機優化版)
         // ==========================================
         window.onload = async () => {
             const inputField = document.getElementById('productInput');
@@ -124,23 +160,76 @@
                 const res = await fetch('/api/products');
                 if (!res.ok) throw new Error("伺服器回應錯誤");
                 
-                const products = await res.json();
-                const datalist = document.getElementById('productList');
-                datalist.innerHTML = ''; 
+                allProductsList = await res.json();
+                renderDropdownList(allProductsList); // 畫出選單
                 
-                products.forEach(p => { 
-                    const option = document.createElement('option');
-                    option.value = p;
-                    datalist.appendChild(option);
-                });
-                
-                inputField.placeholder = "🔍 點擊此處選擇，或直接輸入關鍵字 (例如: 飛揚)...";
+                inputField.placeholder = "🔍 輸入關鍵字 或 點擊右方箭頭選擇";
                 inputField.disabled = false;
             } catch (error) {
                 inputField.placeholder = "⚠️ 載入失敗，請檢查後端伺服器";
                 inputField.disabled = true;
             }
         };
+
+        // 將保單名稱畫進清單中
+        function renderDropdownList(list) {
+            const ul = document.getElementById('customDropdown');
+            ul.innerHTML = '';
+            if (list.length === 0) {
+                ul.innerHTML = '<li style="color:#999; text-align:center;">找不到符合的保單</li>';
+                return;
+            }
+            list.forEach(p => {
+                const li = document.createElement('li');
+                li.innerText = p;
+                // 點擊選項時的動作
+                li.onclick = () => {
+                    document.getElementById('productInput').value = p;
+                    ul.style.display = 'none';
+                    checkClearBtn();
+                    loadFunds(); // 選擇後自動載入基金表格
+                };
+                ul.appendChild(li);
+            });
+        }
+
+        // 點擊箭頭展開/收起選單
+        function toggleDropdown(event) {
+            event.stopPropagation(); // 阻止點擊事件擴散
+            const ul = document.getElementById('customDropdown');
+            const input = document.getElementById('productInput');
+            if (ul.style.display === 'block') {
+                ul.style.display = 'none';
+            } else {
+                renderDropdownList(allProductsList); // 展開時重置回完整名單
+                ul.style.display = 'block';
+                input.focus();
+            }
+        }
+
+        // 當用戶在框框裡打字時，動態過濾選單
+        document.getElementById('productInput').addEventListener('input', function() {
+            checkClearBtn();
+            const keyword = this.value.trim().toLowerCase();
+            const filtered = allProductsList.filter(p => p.toLowerCase().includes(keyword));
+            renderDropdownList(filtered);
+            document.getElementById('customDropdown').style.display = 'block';
+        });
+
+        // 當點擊網頁其他空白處時，自動收起選單
+        document.addEventListener('click', (event) => {
+            if (!event.target.closest('#customDropdown') && event.target.id !== 'productInput' && event.target.id !== 'toggleBtn') {
+                document.getElementById('customDropdown').style.display = 'none';
+            }
+        });
+
+        // 點擊框框時，如果沒有字就顯示完整名單
+        document.getElementById('productInput').addEventListener('focus', function() {
+            if (this.value === '') {
+                renderDropdownList(allProductsList);
+                document.getElementById('customDropdown').style.display = 'block';
+            }
+        });
 
         // 一鍵清除按鈕邏輯
         function checkClearBtn() {
@@ -154,6 +243,8 @@
             input.value = '';
             document.getElementById('clearBtn').style.display = 'none';
             document.getElementById('fundSection').style.display = 'none';
+            renderDropdownList(allProductsList);
+            document.getElementById('customDropdown').style.display = 'block';
             input.focus();
         }
 
@@ -190,7 +281,6 @@
                 const res = await fetch(`/api/funds?product=${encodeURIComponent(product)}`);
                 currentFunds = await res.json();
                 
-                // 載入後預設套用近一個月排序
                 currentSortKey = '一個月％';
                 isDescending = true;
                 renderTable(); 
