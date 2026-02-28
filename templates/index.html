@@ -2,13 +2,16 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>國泰基金 AI 投資顧問系統</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>國泰基金 AI 投資顧問系統</title>
     <style>
         /* =========================================
            🎨 全域與長輩友善基礎設定
            ========================================= */
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background: #f4f7f6; color: #222; }
-        .card { background: white; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); overflow-x: auto; }
+        
+        /* 🛠️ 關鍵修復：移除了 overflow-x: auto; 讓下拉選單可以自由跨越邊界！ */
+        .card { background: white; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
         
         label { font-size: 18px; font-weight: bold; color: #333; display: block; margin-bottom: 8px; }
         input[type="text"], input[type="number"], select, button { padding: 15px; font-size: 18px; margin-top: 5px; width: 100%; box-sizing: border-box; border: 2px solid #ccc; border-radius: 8px; }
@@ -21,7 +24,7 @@
         button:disabled { background: #999; cursor: not-allowed; transform: none; box-shadow: none; }
         
         /* =========================================
-           ✨ 新增：手機完美相容的自訂下拉選單樣式
+           ✨ 手機/電腦完美相容的下拉選單
            ========================================= */
         .dropdown-list {
             display: none;
@@ -32,14 +35,14 @@
             background: white;
             border: 2px solid #00843E;
             border-radius: 8px;
-            z-index: 1000;
+            z-index: 9999; /* 把層級拉到最高，確保絕對不會被擋住 */
             box-shadow: 0 8px 16px rgba(0,0,0,0.15);
             margin-top: 5px;
             padding: 0;
             list-style: none;
         }
         .dropdown-list li {
-            padding: 15px; /* 加大觸控範圍，對手機更友善 */
+            padding: 15px;
             cursor: pointer;
             border-bottom: 1px solid #eee;
             font-size: 18px;
@@ -51,8 +54,10 @@
             font-weight: bold;
         }
 
-        /* 表格與動態排序視覺 */
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; min-width: 900px; font-size: 16px; }
+        /* 🛠️ 關鍵修復：把滑動條專門做給表格使用，不影響上面的卡片 */
+        .table-responsive { overflow-x: auto; margin-top: 15px; border-radius: 8px; }
+        
+        table { width: 100%; border-collapse: collapse; min-width: 900px; font-size: 16px; }
         th, td { border: 1px solid #ddd; padding: 12px; text-align: right; }
         th { background: #00843E; color: white; text-align: center; cursor: pointer; position: relative; user-select: none; }
         th:hover { background: #006b32; }
@@ -122,24 +127,27 @@
 
     <div class="card" id="fundSection" style="display:none;">
         <h3>📝 可投資基金清單 (點擊表格標題可重新排序)</h3>
-        <table id="fundTable">
-            <thead>
-                <tr>
-                    <th onclick="sortBy('基金代碼')">基金代碼</th>
-                    <th onclick="sortBy('基金名稱')">基金名稱</th>
-                    <th onclick="sortBy('一個月％')">一個月(%)</th>
-                    <th onclick="sortBy('三個月％')">三個月(%)</th>
-                    <th onclick="sortBy('六個月％')">六個月(%)</th>
-                    <th onclick="sortBy('今年來％')">今年來(%)</th>
-                    <th onclick="sortBy('一年％')">一年(%)</th>
-                    <th onclick="sortBy('二年％')">二年(%)</th>
-                    <th onclick="sortBy('三年％')">三年(%)</th>
-                    <th onclick="sortBy('五年％')">五年(%)</th>
-                    <th onclick="sortBy('成立來％')">成立來(%)</th>
-                </tr>
-            </thead>
-            <tbody id="fundTableBody"></tbody>
-        </table>
+        
+        <div class="table-responsive">
+            <table id="fundTable">
+                <thead>
+                    <tr>
+                        <th onclick="sortBy('基金代碼')">基金代碼</th>
+                        <th onclick="sortBy('基金名稱')">基金名稱</th>
+                        <th onclick="sortBy('一個月％')">一個月(%)</th>
+                        <th onclick="sortBy('三個月％')">三個月(%)</th>
+                        <th onclick="sortBy('六個月％')">六個月(%)</th>
+                        <th onclick="sortBy('今年來％')">今年來(%)</th>
+                        <th onclick="sortBy('一年％')">一年(%)</th>
+                        <th onclick="sortBy('二年％')">二年(%)</th>
+                        <th onclick="sortBy('三年％')">三年(%)</th>
+                        <th onclick="sortBy('五年％')">五年(%)</th>
+                        <th onclick="sortBy('成立來％')">成立來(%)</th>
+                    </tr>
+                </thead>
+                <tbody id="fundTableBody"></tbody>
+            </table>
+        </div>
         
         <button id="aiButton" onclick="getAIAdvice()">🤖 綜合以上條件，產生專屬配置建議</button>
         <div id="aiAdvice"></div>
@@ -149,11 +157,9 @@
         let currentFunds = [];
         let currentSortKey = '一個月％';
         let isDescending = true;
-        let allProductsList = []; // 儲存所有的保單名稱
+        let allProductsList = []; 
 
-        // ==========================================
-        // 1. 初始化與下拉選單邏輯 (手機優化版)
-        // ==========================================
+        // 1. 初始化與下拉選單邏輯
         window.onload = async () => {
             const inputField = document.getElementById('productInput');
             try {
@@ -161,7 +167,7 @@
                 if (!res.ok) throw new Error("伺服器回應錯誤");
                 
                 allProductsList = await res.json();
-                renderDropdownList(allProductsList); // 畫出選單
+                renderDropdownList(allProductsList); 
                 
                 inputField.placeholder = "🔍 輸入關鍵字 或 點擊右方箭頭選擇";
                 inputField.disabled = false;
@@ -171,7 +177,6 @@
             }
         };
 
-        // 將保單名稱畫進清單中
         function renderDropdownList(list) {
             const ul = document.getElementById('customDropdown');
             ul.innerHTML = '';
@@ -182,32 +187,29 @@
             list.forEach(p => {
                 const li = document.createElement('li');
                 li.innerText = p;
-                // 點擊選項時的動作
                 li.onclick = () => {
                     document.getElementById('productInput').value = p;
                     ul.style.display = 'none';
                     checkClearBtn();
-                    loadFunds(); // 選擇後自動載入基金表格
+                    loadFunds(); 
                 };
                 ul.appendChild(li);
             });
         }
 
-        // 點擊箭頭展開/收起選單
         function toggleDropdown(event) {
-            event.stopPropagation(); // 阻止點擊事件擴散
+            event.stopPropagation(); 
             const ul = document.getElementById('customDropdown');
             const input = document.getElementById('productInput');
             if (ul.style.display === 'block') {
                 ul.style.display = 'none';
             } else {
-                renderDropdownList(allProductsList); // 展開時重置回完整名單
+                renderDropdownList(allProductsList); 
                 ul.style.display = 'block';
                 input.focus();
             }
         }
 
-        // 當用戶在框框裡打字時，動態過濾選單
         document.getElementById('productInput').addEventListener('input', function() {
             checkClearBtn();
             const keyword = this.value.trim().toLowerCase();
@@ -216,14 +218,12 @@
             document.getElementById('customDropdown').style.display = 'block';
         });
 
-        // 當點擊網頁其他空白處時，自動收起選單
         document.addEventListener('click', (event) => {
             if (!event.target.closest('#customDropdown') && event.target.id !== 'productInput' && event.target.id !== 'toggleBtn') {
                 document.getElementById('customDropdown').style.display = 'none';
             }
         });
 
-        // 點擊框框時，如果沒有字就顯示完整名單
         document.getElementById('productInput').addEventListener('focus', function() {
             if (this.value === '') {
                 renderDropdownList(allProductsList);
@@ -231,7 +231,6 @@
             }
         });
 
-        // 一鍵清除按鈕邏輯
         function checkClearBtn() {
             const input = document.getElementById('productInput');
             const btn = document.getElementById('clearBtn');
@@ -248,7 +247,6 @@
             input.focus();
         }
 
-        // AI 模式切換邏輯
         function toggleAutoMode() {
             const isAuto = document.getElementById('aiAutoMode').checked;
             const strategySelect = document.getElementById('strategySelect');
@@ -270,9 +268,7 @@
             }
         }
 
-        // ==========================================
         // 2. 資料載入與表格排序邏輯
-        // ==========================================
         async function loadFunds() {
             const product = document.getElementById('productInput').value;
             if (!product) return;
@@ -346,9 +342,7 @@
             });
         }
 
-        // ==========================================
         // 3. 呼叫 AI API 邏輯
-        // ==========================================
         async function getAIAdvice() {
             const adviceDiv = document.getElementById('aiAdvice');
             const aiButton = document.getElementById('aiButton');
@@ -358,40 +352,3 @@
             adviceDiv.innerHTML = "<em>⏳ 專家 AI 正在讀取龐大市場數據進行深度運算，請稍候 (約 5~10 秒)...</em>";
             
             aiButton.disabled = true;
-            aiButton.innerText = "分析中，請稍候...";
-
-            const fundDataForAI = currentFunds.map(f => {
-                return `- ${f['基金代碼']} ${f['基金名稱']} | 近1個月:${f['一個月％']}% | 近6個月:${f['六個月％']}% | 近1年:${f['一年％']}% | 成立來:${f['成立來％']}%`;
-            }).join('\n');
-
-            const payload = {
-                product: document.getElementById('productInput').value,
-                strategy: isAuto ? "AI決定" : document.getElementById('strategySelect').value,
-                fundCount: isAuto ? "AI決定" : document.getElementById('fundCountInput').value,
-                funds: fundDataForAI
-            };
-
-            try {
-                const res = await fetch('/api/advice', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const data = await res.json();
-
-                if(data.advice) {
-                    adviceDiv.innerHTML = data.advice;
-                } else {
-                    adviceDiv.innerHTML = "<span style='color:red;'>⚠️ 分析失敗，請檢查系統日誌。</span>";
-                }
-            } catch (error) {
-                console.error("AI 分析失敗:", error);
-                adviceDiv.innerHTML = "<span style='color:red;'>⚠️ 無法連線至 AI 伺服器，請稍後再試。</span>";
-            } finally {
-                aiButton.disabled = false;
-                aiButton.innerText = isAuto ? "🚀 重新啟動 AI 全權委託分析" : "🤖 重新產生 AI 專屬配置建議";
-            }
-        }
-    </script>
-</body>
-</html>
