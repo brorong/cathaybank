@@ -47,14 +47,17 @@ jobs:
         
 # (上面是您原本執行爬蟲的步驟，例如 run: python scraper.py)
       
-    - name: 將最新資料庫提交並推回 GitHub (Commit & Push)
-      run: |
-        # 1. 告訴 GitHub 現在是機器人在操作
-        git config --global user.name "GitHub Actions Bot"
-        git config --global user.email "actions@github.com"
-        
-        # 2. 將爬蟲剛產生的資料庫加入追蹤
-        git add cathay_funds.db
+- name: 將最新資料庫提交並推回 GitHub (Commit & Push)
+        run: |
+          # 1. 告訴 GitHub 現在是機器人在操作
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+          
+          # 2. 【關鍵修改】加上 -f，強制突破 .gitignore 的限制加入資料庫
+          git add -f cathay_funds.db
+          
+          # 3. 檢查檔案是否有變動並推播
+          git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 自動更新：每日最新基金淨值與績效" && git push)
         
         # 3. 檢查檔案是否有變動。如果有變動才 Commit，避免沒變動時報錯
         git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 自動更新：每日最新基金淨值與績效" && git push)        
