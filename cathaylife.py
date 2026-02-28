@@ -23,7 +23,7 @@ def fetch_all_cathay_funds():
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
     # ✨ 關鍵修復：把背景視窗強制撐到超大！破解 RWD 隱藏欄位的封印！
-    options.add_argument('--window-size=2560,1440') 
+    options.add_argument('--window-size=1920,1080') 
 
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     all_funds_data = []
@@ -230,3 +230,4 @@ if __name__ == "__main__":
 
     else:
         print("\n❌ 未能取得任何資料。", flush=True)
+
