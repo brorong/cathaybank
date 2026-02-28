@@ -101,13 +101,22 @@ def fetch_all_cathay_funds():
 
                     if df_list:
                         df = df_list[0]
-                        if isinstance(df.columns, pd.MultiIndex):
-                            df.columns = [col[-1] for col in df.columns]
+                        
+                        # ==========================================
+                        # 🛠️ 關鍵修復：強制覆蓋醜陋的網頁多層次標題
+                        # 直接定義乾淨的 11 個欄位，徹底消滅 Unnamed 字串
+                        # ==========================================
+                        if len(df.columns) >= 11:
+                            df.columns = [
+                                '基金代碼', '基金名稱', '一個月％', '三個月％', '六個月％',
+                                '今年來％', '一年％', '二年％', '三年％', '五年％', '成立來％'
+                            ][:len(df.columns)]
 
                         # 確保代碼欄位被當作字串讀取，避免開頭的 0 消失
-                        if '代碼' in df.columns:
-                            df['代碼'] = df['代碼'].astype(str)
+                        if '基金代碼' in df.columns:
+                            df['基金代碼'] = df['基金代碼'].astype(str)
 
+                        # 插入保單名稱作為第一欄
                         df.insert(0, '保險商品名稱', product)
                         all_funds_data.append(df)
                         print(f"  └─ ✅ 成功取得 {len(df)} 筆基金績效資料\n")
@@ -141,15 +150,13 @@ if __name__ == "__main__":
         # 🧹 第一階段：資料清洗 (Data Cleaning)
         # ==========================================
         print("\n開始進行資料清洗...")
-        # 1. 清理欄位名稱 (去除空白與雙引號)
-        result_df.columns = [str(col).strip().replace('"', '') for col in result_df.columns]
-
-        # 2. 深度清理字串內容：去除隱藏的頭尾空白
-        for col in ['保險商品名稱', '代碼', '名稱']:
+        
+        # 清除字串前後隱藏的空白，避免 AI 讀取或資料庫查詢出錯
+        for col in ['保險商品名稱', '基金代碼', '基金名稱']:
             if col in result_df.columns:
                 result_df[col] = result_df[col].astype(str).str.strip()
 
-        # 3. 將 NaN 替換為空字串，確保寫入資料庫與 Sheets 時不會報錯
+        # 將 NaN 替換為空字串，確保寫入資料庫與 Sheets 時不會報錯
         result_df = result_df.fillna('')
         print("✅ 資料清洗完畢。")
 
@@ -167,6 +174,7 @@ if __name__ == "__main__":
         print(f"正在將資料存入 SQLite ({db_name})...")
         try:
             conn = sqlite3.connect(db_name)
+            # if_exists='replace' 會將原本有 Unnamed 的舊表直接砍掉重練！
             result_df.to_sql('funds', conn, if_exists='replace', index=False)
             conn.commit()
             conn.close()
