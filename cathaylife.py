@@ -11,14 +11,14 @@ from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.common.exceptions import TimeoutException
 import gspread
-import sqlite3  # ✨ 新增 SQLite 套件
+import sqlite3
 
 
 def fetch_all_cathay_funds():
     url = 'https://fund.cathaylife.com.tw/content.html?sUrl=$W$HTML$SELECT]DJHTM'
 
     options = webdriver.ChromeOptions()
-    options.add_argument('--headless=new') # 雲端部署專用
+    options.add_argument('--headless=new')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
@@ -37,8 +37,7 @@ def fetch_all_cathay_funds():
             print("❌ 找不到 iframe，請確認網頁結構。")
             return None
 
-        select_locator = (By.XPATH,
-                          "//select[option[contains(text(), '壽險') or contains(text(), '保險') or contains(text(), '請選擇')]]")
+        select_locator = (By.XPATH, "//select[option[contains(text(), '壽險') or contains(text(), '保險') or contains(text(), '請選擇')]]")
         try:
             wait.until(EC.presence_of_element_located(select_locator))
         except TimeoutException:
@@ -103,31 +102,26 @@ def fetch_all_cathay_funds():
                         df = df_list[0]
                         
                         # ==========================================
-                        # 🛠️ 終極修復區：先切除垃圾，再套用標題
+                        # 🛠️ 終極修復：用「點名過濾法」取代「強制戴帽子」
                         # ==========================================
-                        # 1. 壓平多層級標題，避免 Pandas 錯亂
+                        # 1. 安全解開多層合併儲存格 (絕對不會有長度錯誤)
                         if isinstance(df.columns, pd.MultiIndex):
-                            df.columns = [str(col[-1]) if 'Unnamed' not in str(col[-1]) else str(col[0]) for col in df.columns]
+                            df.columns = [str(col[-1]) for col in df.columns]
                             
-                        # 2. 雷達掃描：找出「代碼」這兩個字究竟在第幾個欄位
-                        code_idx = -1
-                        for i, col in enumerate(df.columns):
-                            if '代碼' in str(col):
-                                code_idx = i
-                                break
-                                
-                        if code_idx != -1:
-                            # 3. 完美切割：從「代碼」這欄開始，精準往右切下 11 個欄位！
-                            # 這樣不管原始表格有 12 欄還是 15 欄，我們都只留下我們要的 11 欄。
-                            df = df.iloc[:, code_idx : code_idx + 11]
-                            
-                            # 4. 因為現在確定只剩下 11 欄(或更少)，套用標準標題絕對不會報錯！
-                            standard_cols = ['基金代碼', '基金名稱', '一個月％', '三個月％', '六個月％', '今年來％', '一年％', '二年％', '三年％', '五年％', '成立來％']
-                            df.columns = standard_cols[:len(df.columns)]
+                        # 2. 清除欄位名稱的隱藏空白與換行符號
+                        df.columns = [str(c).strip().replace('\n', '').replace('"', '') for c in df.columns]
 
-                        # ==========================================
+                        # 3. 把舊版的名稱統一改為我們系統需要的標準名稱
+                        df = df.rename(columns={'代碼': '基金代碼', '名稱': '基金名稱'})
 
-                        # 確保代碼欄位被當作字串讀取，避免開頭的 0 消失
+                        # 4. 定義我們唯一需要的「標準 11 欄」
+                        standard_cols = ['基金代碼', '基金名稱', '一個月％', '三個月％', '六個月％', '今年來％', '一年％', '二年％', '三年％', '五年％', '成立來％']
+                        
+                        # 5. 【關鍵過濾】只把有在標準名單內的欄位留下來，不管網頁塞了多少垃圾欄位，瞬間被過濾掉！
+                        keep_cols = [c for c in standard_cols if c in df.columns]
+                        df = df[keep_cols]
+
+                        # 確保代碼欄位被當作字串讀取
                         if '基金代碼' in df.columns:
                             df['基金代碼'] = df['基金代碼'].astype(str)
 
@@ -165,13 +159,11 @@ if __name__ == "__main__":
         # 🧹 第一階段：資料清洗 (Data Cleaning)
         # ==========================================
         print("\n開始進行資料清洗...")
-        
-        # 深度清理字串內容：去除隱藏的頭尾空白
         for col in ['保險商品名稱', '基金代碼', '基金名稱']:
             if col in result_df.columns:
                 result_df[col] = result_df[col].astype(str).str.strip()
 
-        # 將 NaN 替換為空字串，確保寫入資料庫與 Sheets 時不會報錯
+        # 將 NaN 替換為空字串
         result_df = result_df.fillna('')
         print("✅ 資料清洗完畢。")
 
@@ -206,7 +198,6 @@ if __name__ == "__main__":
             worksheet = spreadsheet.sheet1
 
             worksheet.clear()
-
             header = result_df.columns.values.tolist()
             data_values = result_df.values.tolist()
             data_to_upload = [header] + data_values
