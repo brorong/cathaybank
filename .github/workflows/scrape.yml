@@ -1,0 +1,46 @@
+name: Daily Cathay Fund Scraper
+
+on:
+  schedule:
+    # 設定定時執行 (採用 UTC 時間)。
+    # 這裡設定 0 0 * * * 代表每天 UTC 0 點 (台灣時間早上 8 點) 執行。
+    - cron: '0 0 * * *' 
+  workflow_dispatch: # 加入這行，讓您可以隨時在 GitHub 網頁上手動點擊執行按鈕
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest # 使用最新的 Ubuntu Linux 機器
+
+    steps:
+    - name: 1. 取得程式碼
+      uses: actions/checkout@v4
+
+    - name: 2. 設定 Python 環境
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11' # 指定 Python 版本
+
+    - name: 3. 安裝依賴套件
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: 4. 還原 Google 金鑰
+      # 從 Secrets 讀取我們剛剛貼上的金鑰內容，並動態生成 credentials.json 檔案
+      env:
+        GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      run: |
+        echo "$GOOGLE_CREDENTIALS" > credentials.json
+
+    - name: 5. 執行爬蟲主程式
+      run: python cathaylife.py
+
+    - name: 6. 上傳產出的檔案供下載 (Artifacts)
+      # 執行完畢後，把產出的檔案打包讓您可以從 GitHub 網頁下載
+      uses: actions/upload-artifact@v4
+      with:
+        name: cathay-fund-data
+        path: |
+          Cathay_Performance_Funds_All.csv
+          cathay_funds.db
+        retention-days: 7 # 檔案在 GitHub 上保留 7 天
