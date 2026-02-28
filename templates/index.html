@@ -4,40 +4,47 @@
     <meta charset="UTF-8">
     <title>國泰基金 AI 投資顧問系統</title>
     <style>
+        /* =========================================
+           🎨 全域與長輩友善基礎設定
+           ========================================= */
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background: #f4f7f6; color: #222; }
         .card { background: white; padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); overflow-x: auto; }
-
+        
         label { font-size: 18px; font-weight: bold; color: #333; display: block; margin-bottom: 8px; }
         input[type="text"], input[type="number"], select, button { padding: 15px; font-size: 18px; margin-top: 5px; width: 100%; box-sizing: border-box; border: 2px solid #ccc; border-radius: 8px; }
-
-        /* 讓輸入數量的框框好看一點 */
-        .flex-row { display: flex; gap: 15px; }
-        .flex-row > div { flex: 1; }
-
+        
+        .flex-row { display: flex; gap: 15px; flex-wrap: wrap; }
+        .flex-row > div { flex: 1; min-width: 250px; }
+        
         button { background: #00843E; color: white; border: none; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,132,62,0.3); transition: 0.2s; margin-top: 20px; }
         button:hover { background: #006b32; transform: translateY(-2px); }
         button:disabled { background: #999; cursor: not-allowed; transform: none; box-shadow: none; }
-
-        /* 表格樣式優化，加入可點擊排序的視覺效果 */
+        
+        /* 表格與動態排序視覺 */
         table { width: 100%; border-collapse: collapse; margin-top: 15px; min-width: 900px; font-size: 16px; }
         th, td { border: 1px solid #ddd; padding: 12px; text-align: right; }
-        th { background: #00843E; color: white; text-align: center; cursor: pointer; position: relative; }
+        th { background: #00843E; color: white; text-align: center; cursor: pointer; position: relative; user-select: none; }
         th:hover { background: #006b32; }
-        th::after { content: " ↕"; font-size: 14px; opacity: 0.6; } /* 排序小圖示 */
+        th::after { content: " ↕"; font-size: 14px; opacity: 0.6; }
         td:nth-child(1), td:nth-child(2) { text-align: left; }
-
-        /* 高齡友善 AI 建議區塊 */
+        
+        /* =========================================
+           ✨ AI 建議區塊 (大字體、高對比、卡片化)
+           ========================================= */
         #aiAdvice { display: none; background: #fff; padding: 10px; margin-top: 25px; line-height: 1.8; font-size: 18px; color: #333; }
         .advice-title { color: #00843E; font-size: 26px; border-bottom: 3px solid #00843E; padding-bottom: 10px; margin-top: 0; }
         .intro-text { font-size: 20px; font-weight: bold; margin-bottom: 20px; }
+        
         .allocation-card { border: 2px solid #eaeaea; border-radius: 12px; padding: 20px 25px; margin: 20px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
         .allocation-card.core { border-left: 10px solid #00843E; background-color: #F4FAF6; }
         .allocation-card.satellite { border-left: 10px solid #FF9800; background-color: #FFF8EB; }
+        
         .badge { display: inline-block; padding: 6px 15px; border-radius: 20px; font-weight: bold; color: white; font-size: 16px; margin-bottom: 12px; }
         .core .badge { background-color: #00843E; }
         .satellite .badge { background-color: #FF9800; }
         .allocation-card h4 { margin: 0 0 10px 0; font-size: 24px; color: #111; }
         .allocation-card p { margin: 0; font-size: 18px; }
+        
         .warm-reminder { background-color: #E3F2FD; padding: 18px; border-radius: 10px; font-size: 18px; color: #0277BD; margin-top: 25px; border: 1px solid #BBDEFB; }
     </style>
 </head>
@@ -46,11 +53,15 @@
 
     <div class="card">
         <label for="productInput"><strong>🔍 第一步：搜尋或選擇保險商品：</strong></label>
-        <input type="text" id="productInput" list="productList" placeholder="⏳ 系統連線中，請稍候..." onchange="loadFunds()">
+        
+        <div style="position: relative; display: flex; align-items: center; margin-top: 5px;">
+            <input type="text" id="productInput" list="productList" placeholder="⏳ 系統連線中，請稍候..." oninput="checkClearBtn()" onchange="loadFunds()" style="margin-top: 0; padding-right: 50px;">
+            <button id="clearBtn" onclick="clearProductInput()" style="position: absolute; right: 10px; width: 35px; height: 35px; margin: 0; padding: 0; background: #f4f7f6; color: #888; border-radius: 50%; display: none; box-shadow: none; font-size: 16px; border: 1px solid #ddd;" title="清除文字">✖</button>
+        </div>
         <datalist id="productList"></datalist>
-
+        
         <br><br>
-
+        
         <div class="flex-row">
             <div>
                 <label for="strategySelect"><strong>🎯 第二步：選擇投資策略：</strong></label>
@@ -94,7 +105,7 @@
             </thead>
             <tbody id="fundTableBody"></tbody>
         </table>
-
+        
         <button id="aiButton" onclick="getAIAdvice()">🤖 綜合以上條件，產生專屬配置建議</button>
         <div id="aiAdvice"></div>
     </div>
@@ -104,22 +115,25 @@
         let currentSortKey = '一個月％';
         let isDescending = true;
 
+        // ==========================================
+        // 1. 初始化與 UI 互動邏輯
+        // ==========================================
         window.onload = async () => {
             const inputField = document.getElementById('productInput');
             try {
                 const res = await fetch('/api/products');
                 if (!res.ok) throw new Error("伺服器回應錯誤");
-
+                
                 const products = await res.json();
                 const datalist = document.getElementById('productList');
-                datalist.innerHTML = '';
-
-                products.forEach(p => {
+                datalist.innerHTML = ''; 
+                
+                products.forEach(p => { 
                     const option = document.createElement('option');
                     option.value = p;
                     datalist.appendChild(option);
                 });
-
+                
                 inputField.placeholder = "🔍 點擊此處選擇，或直接輸入關鍵字 (例如: 飛揚)...";
                 inputField.disabled = false;
             } catch (error) {
@@ -128,6 +142,46 @@
             }
         };
 
+        // 一鍵清除按鈕邏輯
+        function checkClearBtn() {
+            const input = document.getElementById('productInput');
+            const btn = document.getElementById('clearBtn');
+            btn.style.display = input.value.length > 0 ? 'block' : 'none';
+        }
+
+        function clearProductInput() {
+            const input = document.getElementById('productInput');
+            input.value = '';
+            document.getElementById('clearBtn').style.display = 'none';
+            document.getElementById('fundSection').style.display = 'none';
+            input.focus();
+        }
+
+        // AI 模式切換邏輯
+        function toggleAutoMode() {
+            const isAuto = document.getElementById('aiAutoMode').checked;
+            const strategySelect = document.getElementById('strategySelect');
+            const fundCountInput = document.getElementById('fundCountInput');
+            const aiButton = document.getElementById('aiButton');
+
+            if (isAuto) {
+                strategySelect.disabled = true;
+                fundCountInput.disabled = true;
+                strategySelect.style.backgroundColor = '#f0f0f0';
+                fundCountInput.style.backgroundColor = '#f0f0f0';
+                aiButton.innerText = "🚀 啟動 AI 全權委託分析";
+            } else {
+                strategySelect.disabled = false;
+                fundCountInput.disabled = false;
+                strategySelect.style.backgroundColor = '#fff';
+                fundCountInput.style.backgroundColor = '#fff';
+                aiButton.innerText = "🤖 綜合以上條件，產生專屬配置建議";
+            }
+        }
+
+        // ==========================================
+        // 2. 資料載入與表格排序邏輯
+        // ==========================================
         async function loadFunds() {
             const product = document.getElementById('productInput').value;
             if (!product) return;
@@ -135,14 +189,17 @@
             try {
                 const res = await fetch(`/api/funds?product=${encodeURIComponent(product)}`);
                 currentFunds = await res.json();
-
+                
+                // 載入後預設套用近一個月排序
                 currentSortKey = '一個月％';
                 isDescending = true;
-                renderTable();
-
+                renderTable(); 
+                
                 document.getElementById('fundSection').style.display = 'block';
                 document.getElementById('aiAdvice').style.display = 'none';
-            } catch (error) { console.error("載入基金失敗:", error); }
+            } catch (error) { 
+                console.error("載入基金失敗:", error); 
+            }
         }
 
         function sortBy(key) {
@@ -200,42 +257,16 @@
         }
 
         // ==========================================
-        // ✅ 新增：切換 AI 全自動模式的視覺鎖定
-        // ==========================================
-        function toggleAutoMode() {
-            const isAuto = document.getElementById('aiAutoMode').checked;
-            const strategySelect = document.getElementById('strategySelect');
-            const fundCountInput = document.getElementById('fundCountInput');
-            const aiButton = document.getElementById('aiButton');
-
-            if (isAuto) {
-                // 鎖定原本的選項並變灰
-                strategySelect.disabled = true;
-                fundCountInput.disabled = true;
-                strategySelect.style.backgroundColor = '#f0f0f0';
-                fundCountInput.style.backgroundColor = '#f0f0f0';
-                aiButton.innerText = "🚀 啟動 AI 全權委託分析";
-            } else {
-                // 解除鎖定
-                strategySelect.disabled = false;
-                fundCountInput.disabled = false;
-                strategySelect.style.backgroundColor = '#fff';
-                fundCountInput.style.backgroundColor = '#fff';
-                aiButton.innerText = "🤖 綜合以上條件，產生專屬配置建議";
-            }
-        }
-
-        // ==========================================
-        // 修改：傳送給後端的資料邏輯
+        // 3. 呼叫 AI API 邏輯
         // ==========================================
         async function getAIAdvice() {
             const adviceDiv = document.getElementById('aiAdvice');
             const aiButton = document.getElementById('aiButton');
             const isAuto = document.getElementById('aiAutoMode').checked;
-
+            
             adviceDiv.style.display = 'block';
-            adviceDiv.innerHTML = "<em>⏳ 專家 AI 正在讀取龐大市場數據進行深度運算，請稍候...</em>";
-
+            adviceDiv.innerHTML = "<em>⏳ 專家 AI 正在讀取龐大市場數據進行深度運算，請稍候 (約 5~10 秒)...</em>";
+            
             aiButton.disabled = true;
             aiButton.innerText = "分析中，請稍候...";
 
@@ -243,7 +274,6 @@
                 return `- ${f['基金代碼']} ${f['基金名稱']} | 近1個月:${f['一個月％']}% | 近6個月:${f['六個月％']}% | 近1年:${f['一年％']}% | 成立來:${f['成立來％']}%`;
             }).join('\n');
 
-            // ✅ 如果勾選了全自動，就把值蓋掉變成 "AI決定"
             const payload = {
                 product: document.getElementById('productInput').value,
                 strategy: isAuto ? "AI決定" : document.getElementById('strategySelect').value,
