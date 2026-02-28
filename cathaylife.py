@@ -103,14 +103,29 @@ def fetch_all_cathay_funds():
                         df = df_list[0]
                         
                         # ==========================================
-                        # 🛠️ 關鍵修復：強制覆蓋醜陋的網頁多層次標題
-                        # 直接定義乾淨的 11 個欄位，徹底消滅 Unnamed 字串
+                        # 🛠️ 終極修復區：先切除垃圾，再套用標題
                         # ==========================================
-                        if len(df.columns) >= 11:
-                            df.columns = [
-                                '基金代碼', '基金名稱', '一個月％', '三個月％', '六個月％',
-                                '今年來％', '一年％', '二年％', '三年％', '五年％', '成立來％'
-                            ][:len(df.columns)]
+                        # 1. 壓平多層級標題，避免 Pandas 錯亂
+                        if isinstance(df.columns, pd.MultiIndex):
+                            df.columns = [str(col[-1]) if 'Unnamed' not in str(col[-1]) else str(col[0]) for col in df.columns]
+                            
+                        # 2. 雷達掃描：找出「代碼」這兩個字究竟在第幾個欄位
+                        code_idx = -1
+                        for i, col in enumerate(df.columns):
+                            if '代碼' in str(col):
+                                code_idx = i
+                                break
+                                
+                        if code_idx != -1:
+                            # 3. 完美切割：從「代碼」這欄開始，精準往右切下 11 個欄位！
+                            # 這樣不管原始表格有 12 欄還是 15 欄，我們都只留下我們要的 11 欄。
+                            df = df.iloc[:, code_idx : code_idx + 11]
+                            
+                            # 4. 因為現在確定只剩下 11 欄(或更少)，套用標準標題絕對不會報錯！
+                            standard_cols = ['基金代碼', '基金名稱', '一個月％', '三個月％', '六個月％', '今年來％', '一年％', '二年％', '三年％', '五年％', '成立來％']
+                            df.columns = standard_cols[:len(df.columns)]
+
+                        # ==========================================
 
                         # 確保代碼欄位被當作字串讀取，避免開頭的 0 消失
                         if '基金代碼' in df.columns:
@@ -151,7 +166,7 @@ if __name__ == "__main__":
         # ==========================================
         print("\n開始進行資料清洗...")
         
-        # 清除字串前後隱藏的空白，避免 AI 讀取或資料庫查詢出錯
+        # 深度清理字串內容：去除隱藏的頭尾空白
         for col in ['保險商品名稱', '基金代碼', '基金名稱']:
             if col in result_df.columns:
                 result_df[col] = result_df[col].astype(str).str.strip()
@@ -174,7 +189,6 @@ if __name__ == "__main__":
         print(f"正在將資料存入 SQLite ({db_name})...")
         try:
             conn = sqlite3.connect(db_name)
-            # if_exists='replace' 會將原本有 Unnamed 的舊表直接砍掉重練！
             result_df.to_sql('funds', conn, if_exists='replace', index=False)
             conn.commit()
             conn.close()
