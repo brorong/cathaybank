@@ -2,27 +2,27 @@ name: Daily Cathay Fund Scraper
 
 on:
   schedule:
-    # 設定定時執行 (採用 UTC 時間)。
-    # 這裡設定 50 22 * * * 代表每天 UTC 0 點 (台灣時間早上 8 點) 執行。
     - cron: '50 22 * * *' 
-  workflow_dispatch: # 加入這行，讓您可以隨時在 GitHub 網頁上手動點擊執行按鈕
+  workflow_dispatch:
 
-
+# 🟢 發給機器人寫入權限
 permissions:
   contents: write
-  
+
 jobs:
   scrape:
-    runs-on: ubuntu-latest # 使用最新的 Ubuntu Linux 機器
+    runs-on: ubuntu-latest 
 
     steps:
     - name: 1. 取得程式碼
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # 👈 【關鍵修復1】下載完整的歷史紀錄，讓機器人有能力解決版本衝突！
 
     - name: 2. 設定 Python 環境
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11' # 指定 Python 版本
+        python-version: '3.11'
 
     - name: 3. 安裝依賴套件
       run: |
@@ -30,7 +30,6 @@ jobs:
         pip install -r requirements.txt
 
     - name: 4. 還原 Google 金鑰
-      # 從 Secrets 讀取我們剛剛貼上的金鑰內容，並動態生成 credentials.json 檔案
       env:
         GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
       run: |
@@ -40,32 +39,29 @@ jobs:
       run: python cathaylife.py
 
     - name: 6. 上傳產出的檔案供下載 (Artifacts)
-      # 執行完畢後，把產出的檔案打包讓您可以從 GitHub 網頁下載
       uses: actions/upload-artifact@v4
       with:
         name: cathay-fund-data
         path: |
           Cathay_Performance_Funds_All.csv
           cathay_funds.db
-        retention-days: 7 # 檔案在 GitHub 上保留 7 天
-
-      - name: 7. 將最新資料庫提交並推回 GitHub (Commit & Push)
-    run: |
-      # 1. 告訴 GitHub 現在是機器人在操作
-      git config --global user.name "GitHub Actions Bot"
-      git config --global user.email "actions@github.com"
-      
-      # 2. 強制加入爬好的資料庫檔案
-      git add -f cathay_funds.db
-      
-      # 3. 檢查檔案是否有變動，若有變動則先打包 (Commit)
-      git diff --quiet && git diff --staged --quiet || git commit -m "🤖 自動更新：每日最新基金淨值與績效"
-      
-      # 4. 【關鍵修復】先從雲端拉取(Pull)最新的程式碼並合併，避免版本衝突！
-      git pull --rebase origin main
-      
-      # 5. 安全地將資料推播(Push)回 GitHub
-      git push origin main
-  
+        retention-days: 7
         
-   
+    - name: 7. 將最新資料庫提交並推回 GitHub (Commit & Push)
+      run: |
+        # 1. 告訴 GitHub 現在是機器人在操作
+        git config --global user.name "GitHub Actions Bot"
+        git config --global user.email "actions@github.com"
+        
+        # 2. 強制加入爬好的資料庫與 CSV 檔案
+        git add -f cathay_funds.db
+        git add -f Cathay_Performance_Funds_All.csv
+        
+        # 3. 檢查檔案是否有變動，若有變動則先打包 (Commit)
+        git diff --quiet && git diff --staged --quiet || git commit -m "🤖 自動更新：每日最新基金淨值與績效"
+        
+        # 4. 👈 【關鍵修復2】先從雲端拉取(Pull)最新的程式碼並合併，避免版本衝突！
+        git pull --rebase origin main
+        
+        # 5. 安全地將資料推播(Push)回 GitHub
+        git push origin main
