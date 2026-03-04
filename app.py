@@ -144,7 +144,7 @@ def get_ai_advice():
         
         # ✅ 修復點 2：使用官方最穩定支援的模型名稱
         response = client.models.generate_content(
-            model='gemini-3-flash-preview',
+            model='gemini-3.1-flash-lite-preview',
             contents=prompt
         )
         print("✅ AI 分析完成！準備回傳至前端。")
@@ -156,6 +156,7 @@ def get_ai_advice():
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
+
 
 
 
