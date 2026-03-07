@@ -2,7 +2,7 @@ name: Daily Cathay Fund Scraper
 
 on:
   schedule:
-    - cron: '50 22 * * *' 
+    - cron: '35 20,3, * * *' 
   workflow_dispatch:
 
 # 🟢 發給機器人寫入權限
