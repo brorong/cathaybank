@@ -106,7 +106,7 @@ def get_ai_advice():
         display_count = str(fund_count)
 
     prompt = f"""
-    你現在是擁有10年經驗的「國泰基金投資專家」。
+    你現在是「國泰投資型商品基金專家」。
     客戶持有的保險商品為：{product_name}。
     該商品可選擇的基金標的，以及它們的「近期績效數據」如下：
 
@@ -156,6 +156,7 @@ def get_ai_advice():
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
+
 
 
 
