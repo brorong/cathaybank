@@ -11,7 +11,7 @@ app = Flask(__name__)
 # 🤖 Gemini AI 初始化設定區
 # ==========================================
 # ⚠️ 資安防護：優先從環境變數抓取金鑰 (Render 雲端部署用)。
-# 如果抓不到(本機測試)，才使用您寫死在程式碼裡的測試金鑰。
+# 如果抓不到(本機測試)，才使用寫死在程式碼裡的測試金鑰。
 MY_API_KEY = os.environ.get("GEMINI_API_KEY", "免費備用key").strip()
 
 client = genai.Client(api_key=MY_API_KEY)
@@ -156,6 +156,7 @@ def get_ai_advice():
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
+
 
 
 
