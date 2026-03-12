@@ -8,20 +8,32 @@ from google import genai
 app = Flask(__name__)
 
 # ==========================================
+# ⚙️ 環境與路徑設定 (雙邊環境相容關鍵)
+# ==========================================
+# 取得目前檔案所在目錄的絕對路徑，確保 Ubuntu 背景執行時不會找不到資料庫
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, 'cathay_funds.db')
+
+# ==========================================
 # 🤖 Gemini AI 初始化設定區
 # ==========================================
-# ⚠️ 資安防護：優先從環境變數抓取金鑰 (Render 雲端部署用)。
-# 如果抓不到(本機測試)，才使用寫死在程式碼裡的測試金鑰。
-MY_API_KEY = os.environ.get("GEMINI_API_KEY", "免費備用key").strip()
+# ⚠️ 資安防護：從環境變數抓取金鑰。
+MY_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
-client = genai.Client(api_key=MY_API_KEY)
+# 若金鑰為空，先不強制報錯，但在啟動時提醒 (避免本機測試忘記設)
+if not MY_API_KEY:
+    print("⚠️ 警告：未偵測到 GEMINI_API_KEY 環境變數，AI 功能將無法正常運作！")
+
+# 這裡延遲初始化 client，避免程式一啟動就因為沒金鑰而 Crash
+client = genai.Client(api_key=MY_API_KEY) if MY_API_KEY else None
 
 
 # ==========================================
 # 📊 資料庫連線設定
 # ==========================================
 def get_db_connection():
-    conn = sqlite3.connect('cathay_funds.db')
+    """建立並回傳資料庫連線，使用絕對路徑"""
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -39,9 +51,9 @@ def index():
 def get_products():
     """從資料庫撈取所有保險商品名稱 (供下拉選單與搜尋使用)"""
     try:
-        conn = get_db_connection()
-        products = conn.execute('SELECT DISTINCT 保險商品名稱 FROM funds WHERE 保險商品名稱 IS NOT NULL').fetchall()
-        conn.close()
+        # 使用 with 語句確保連線會自動關閉，避免 Memory Leak
+        with get_db_connection() as conn:
+            products = conn.execute('SELECT DISTINCT 保險商品名稱 FROM funds WHERE 保險商品名稱 IS NOT NULL').fetchall()
         return jsonify([dict(row)['保險商品名稱'] for row in products])
     except sqlite3.OperationalError as e:
         print(f"🚨 資料庫錯誤 (讀取保單清單): {e}")
@@ -53,13 +65,9 @@ def get_funds():
     """根據商品名稱撈取對應的基金 (包含所有歷史績效)"""
     product_name = request.args.get('product')
     try:
-        conn = get_db_connection()
-
-        # ✅ 修復點 1：使用 `*` 撈取全部欄位，再用 Python 轉換名稱
-        # 這樣不管您的資料庫裡面叫做「代碼」還是「基金代碼」，前端都能正常接收！
-        query = 'SELECT * FROM funds WHERE 保險商品名稱 = ?'
-        rows = conn.execute(query, (product_name,)).fetchall()
-        conn.close()
+        with get_db_connection() as conn:
+            query = 'SELECT * FROM funds WHERE 保險商品名稱 = ?'
+            rows = conn.execute(query, (product_name,)).fetchall()
 
         funds_data = []
         for row in rows:
@@ -79,6 +87,9 @@ def get_funds():
 @app.route('/api/advice', methods=['POST'])
 def get_ai_advice():
     """接收前端傳來的資料，調用 Gemini AI 產生配置建議"""
+    if not client:
+        return jsonify({"error": "伺服器未設定 AI 金鑰，請聯繫管理員。"}), 500
+
     data = request.json
     product_name = data.get('product')
     strategy = data.get('strategy', '平衡')
@@ -142,7 +153,6 @@ def get_ai_advice():
     try:
         print(f"💡 傳送資料給 AI (策略:{strategy} / 檔數:{fund_count})...")
         
-        # ✅ 修復點 2：使用官方最穩定支援的模型名稱
         response = client.models.generate_content(
             model='gemini-3.1-flash-lite-preview',
             contents=prompt
@@ -155,12 +165,12 @@ def get_ai_advice():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
-
-
-
-
-
-
-
-
+    # 🌐 雲端部署動態 Port 與 Debug 模式設定
+    # Render 會自動給予 PORT 環境變數；阿里雲或本機預設使用 5000
+    port = int(os.environ.get("PORT", 5000))
+    
+    # 確保正式環境不會開啟 debug 模式 (防範資安外洩)
+    is_debug = os.environ.get("FLASK_ENV") == "development"
+    
+    # host='0.0.0.0' 確保雲端主機可以接收外部連線
+    app.run(host='0.0.0.0', port=port, debug=is_debug)
