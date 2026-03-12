@@ -18,9 +18,26 @@ jobs:
         port: ${{ secrets.ALIYUN_PORT }}
         script: |
           cd /home/ubuntu/cathaybank
+          
+          # 1. 🛑 停機，釋放檔案鎖定
+          sudo systemctl stop cathaybank
+          
+          # 2. 🧹 殺手鐧：手動刪除 SQLite 的幽靈暫存檔 (如果有的話)
+          rm -f cathay_funds.db-wal cathay_funds.db-shm
+          
+          # 3. 💣 殺手鐧：強制清除伺服器上所有未被 Git 追蹤的雜亂檔案
+          git clean -fd
+          
+          # 4. ⬇️ 拉取並強制覆寫所有檔案
           git fetch origin
           git reset --hard origin/main
+          
+          # 5. 🔑 殺手鐧：校正資料夾權限，確保 ubuntu 帳號有完整讀寫權
+          sudo chown -R ubuntu:ubuntu /home/ubuntu/cathaybank
+          
+          # 6. 📦 更新環境與重啟
           source venv/bin/activate
           pip install -r requirements.txt
-          sudo systemctl restart cathaybank
-          echo "✅ 部署成功！"
+          sudo systemctl start cathaybank
+          
+          echo "✅ 終極部署完成！資料庫已強制同步。"
