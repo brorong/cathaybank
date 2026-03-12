@@ -26,7 +26,7 @@ jobs:
           rm -f cathay_funds.db-wal cathay_funds.db-shm
           
           # 3. 💣 殺手鐧：強制清除伺服器上所有未被 Git 追蹤的雜亂檔案
-          git clean -fd
+          git clean -fd -e venv/
           
           # 4. ⬇️ 拉取並強制覆寫所有檔案
           git fetch origin
