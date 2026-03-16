@@ -1,8 +1,26 @@
-script: |
-  cd /home/ubuntu/cathaybank
-  sudo systemctl stop cathaybank
-  git fetch origin
-  git reset --hard origin/main
-  source venv/bin/activate
-  pip install -r requirements.txt -q
-  sudo systemctl start cathaybank
+name: Deploy to Aliyun
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Deploy to Server
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.ALIYUN_HOST }}
+        username: ${{ secrets.ALIYUN_USER }}
+        key: ${{ secrets.ALIYUN_SSH_KEY }}
+        port: ${{ secrets.ALIYUN_PORT }}
+        script: |
+          cd /home/ubuntu/cathaybank
+          git fetch origin
+          git reset --hard origin/main
+          source venv/bin/activate
+          pip install -r requirements.txt
+          sudo systemctl restart cathaybank
+          echo "✅ 部署成功！"
