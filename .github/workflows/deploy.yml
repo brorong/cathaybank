@@ -18,9 +18,10 @@ jobs:
         port: ${{ secrets.ALIYUN_PORT }}
         script: |
           cd /home/ubuntu/cathaybank
+          sudo systemctl stop cathaybank
           git fetch origin
           git reset --hard origin/main
           source venv/bin/activate
-          pip install -r requirements.txt
-          sudo systemctl restart cathaybank
-          echo "✅ 部署成功！"
+          pip install -r requirements.txt -q
+          sudo systemctl start cathaybank
+
