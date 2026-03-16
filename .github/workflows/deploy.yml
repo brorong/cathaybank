@@ -1,74 +1,8 @@
-name: Daily Cathay Fund Scraper
-
-on:
-  schedule:
-    - cron: '35 20,3 * * *'
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
-jobs:
-  scrape:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: 1. 取得程式碼
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: 2. 設定 Python 環境
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-
-    - name: 3. 安裝依賴套件
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-
-    - name: 4. 還原 Google 金鑰
-      env:
-        GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
-      run: |
-        echo "$GOOGLE_CREDENTIALS" > credentials.json
-
-    - name: 5. 執行爬蟲主程式
-      run: python cathaylife.py
-
-    - name: 6. 上傳產出的檔案供下載 (Artifacts)
-      uses: actions/upload-artifact@v4
-      with:
-        name: cathay-fund-data
-        path: |
-          Cathay_Performance_Funds_All.csv
-          cathay_funds.db
-        retention-days: 7
-
-    - name: 7. 將最新資料庫提交並推回 GitHub (Commit & Push)
-      run: |
-        git config --global user.name "GitHub Actions Bot"
-        git config --global user.email "actions@github.com"
-        git add -f cathay_funds.db
-        git add -f Cathay_Performance_Funds_All.csv
-        git diff --quiet && git diff --staged --quiet || git commit -m "🤖 自動更新：每日最新基金淨值與績效"
-        git pull --rebase origin main
-        git push origin main
-
-    - name: 8. 🚀 部署最新版本到阿里雲
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.ALIYUN_HOST }}
-        username: ${{ secrets.ALIYUN_USER }}
-        key: ${{ secrets.ALIYUN_SSH_KEY }}
-        port: ${{ secrets.ALIYUN_PORT }}
-        script: |
-          cd /home/ubuntu/cathaybank
-          sudo systemctl stop cathaybank
-          git fetch origin
-          git reset --hard origin/main
-          source venv/bin/activate
-          pip install -r requirements.txt -q
-          sudo systemctl start cathaybank
-          echo "✅ 部署完成！"
+script: |
+  cd /home/ubuntu/cathaybank
+  sudo systemctl stop cathaybank
+  git fetch origin
+  git reset --hard origin/main
+  source venv/bin/activate
+  pip install -r requirements.txt -q
+  sudo systemctl start cathaybank
