@@ -29,14 +29,16 @@ def get_ai_client():
         client = genai.Client(api_key=MY_API_KEY)
     return client
 
+
 # ==========================================
 # 📊 資料庫連線設定
 # ==========================================
 def execute_query(query, params=()):
-    """共用資料庫查詢函式，確保連線會自動關閉"""
+    """共用資料庫查詢函式，確保連線會自動關閉，避免資源耗盡"""
     with closing(sqlite3.connect(DB_PATH)) as conn:
         conn.row_factory = sqlite3.Row
         return conn.execute(query, params).fetchall()
+
 
 # ==========================================
 # 🌐 網頁與 API 路由設定
@@ -44,6 +46,7 @@ def execute_query(query, params=()):
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 @app.route('/api/products')
 def get_products():
@@ -54,6 +57,7 @@ def get_products():
     except sqlite3.OperationalError as e:
         print(f"🚨 資料庫錯誤 (讀取保單清單): {e}")
         return jsonify([]), 500
+
 
 @app.route('/api/funds')
 def get_funds():
@@ -71,12 +75,14 @@ def get_funds():
             funds_data.append(fund_dict)
 
         return jsonify(funds_data)
+
     except sqlite3.OperationalError as e:
         print(f"🚨 資料庫錯誤 (讀取基金列表): {e}")
         return jsonify([]), 500
 
+
 # ==========================================
-# 🧠 AI Prompt 產生器 (重構獨立出來)
+# 🧠 AI Prompt 產生器
 # ==========================================
 def build_ai_prompt(product_name, strategy, fund_count, funds_list):
     """根據使用者選擇，動態生成給 AI 的 Prompt"""
@@ -100,7 +106,7 @@ def build_ai_prompt(product_name, strategy, fund_count, funds_list):
         count_instruction = f"【強制要求】請嚴格挑選出「剛好 {fund_count} 檔」最適合的基金，不可多也不可少！"
         display_count = str(fund_count)
 
-    # 3. 組合最終 Prompt
+    # 3. 組合最終 Prompt (特別強調 CSS class 的動態切換)
     return f"""
     請扮演一位資深的專業理財顧問與基金分析師。我正在尋找適合的基金投資標的，請協助我進行篩選與客觀的量化/質化分析。
     客戶持有的保險商品為：{product_name}。
@@ -129,8 +135,8 @@ def build_ai_prompt(product_name, strategy, fund_count, funds_list):
     <p class="intro-text">根據您目前的保單與最新市場動能，為您精選了以下標的：</p>
     
     <div class="allocation-container">
-        <div class="allocation-card core">
-            <div class="badge">🛡️ 核心穩健配置 (或 🚀 衛星成長配置)</div>
+        <div class="allocation-card [請填寫 core 或 satellite]">
+            <div class="badge">[請填寫 🛡️ 核心穩健配置 或 🚀 衛星成長配置]</div>
             <h4>基金名稱 (建議佔比 X%)</h4>
             <p><strong>推薦原因：</strong> (說明原因與引用的績效數據)</p>
         </div>
@@ -140,6 +146,7 @@ def build_ai_prompt(product_name, strategy, fund_count, funds_list):
         <strong>👨‍💼 專家溫馨提醒：</strong> (結語，提醒投資均有風險)
     </div>
     """
+
 
 @app.route('/api/advice', methods=['POST'])
 def get_ai_advice():
@@ -152,7 +159,6 @@ def get_ai_advice():
     fund_count = data.get('fundCount', 4)
     funds_list = data.get('funds')
 
-    # 呼叫重構後的 Prompt 產生器
     prompt = build_ai_prompt(product_name, strategy, fund_count, funds_list)
 
     try:
@@ -167,6 +173,7 @@ def get_ai_advice():
     except Exception as e:
         print("🚨 後台捕捉到 AI 連線錯誤：", e)
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
