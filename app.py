@@ -127,20 +127,35 @@ def get_ai_advice():
     6. 績效數據:必須具體引用提供的「近1個月」或「近1年」績效數據來佐證。。
     7. 進退場機制建議：針對衛星部位的波動性，設定合理的停利與停損建議（例如回檔多少 % 應考慮調節），並提醒潛在風險。
     8. 語氣需極度親切、白話、尊榮。
-    
-    9. 【高齡友善 HTML 排版強制要求】請依照以下 HTML 結構輸出：
-       <h3 class="advice-title">💡 您的【{display_strategy}型】專屬投資配置建議 (共 {display_count} 檔)</h3>
-       <p class="intro-text">根據您目前的保單與最新市場動能，為您精選了以下標的：</p>
+    9.【高齡友善 HTML 排版強制要求】請嚴格依照以下 HTML 結構輸出。若有多檔基金，請務必將所有卡片放置於 <div class="allocation-container"> 內，並確保所有 <div> 標籤皆正確閉合：
 
-       <div class="allocation-card core">
-           <div class="badge">🛡️ 核心穩健配置 (或 🚀 衛星成長配置)</div>
-           <h4>基金名稱 (建議佔比 X%)</h4>
-           <p><strong>推薦原因：</strong> (說明原因與引用的績效數據)</p>
-       </div>
+        <h3 class="advice-title">💡 您的【{display_strategy}型】專屬投資配置建議 (共 {display_count} 檔)</h3>
+        <p class="intro-text">根據您目前的保單與最新市場動能，為您精選了以下標的：</p>
+        
+        <div class="allocation-container">
+            <div class="allocation-card core">
+                <div class="badge">🛡️ 核心穩健配置 (或 🚀 衛星成長配置)</div>
+                <h4>基金名稱 (建議佔比 X%)</h4>
+                <p><strong>推薦原因：</strong> (說明原因與引用的績效數據)</p>
+            </div>
+            </div>
+        
+        <div class="warm-reminder">
+            <strong>👨‍💼 專家溫馨提醒：</strong> (結語，提醒投資均有風險)
+        </div>
+    # 9. 【高齡友善 HTML 排版強制要求】請依照以下 HTML 結構輸出：
+    #    <h3 class="advice-title">💡 您的【{display_strategy}型】專屬投資配置建議 (共 {display_count} 檔)</h3>
+    #    <p class="intro-text">根據您目前的保單與最新市場動能，為您精選了以下標的：</p>
 
-       <div class="warm-reminder">
-           <strong>👨‍💼 專家溫馨提醒：</strong> (結語，提醒投資均有風險)
-       </div>
+    #    <div class="allocation-card core">
+    #        <div class="badge">🛡️ 核心穩健配置 (或 🚀 衛星成長配置)</div>
+    #        <h4>基金名稱 (建議佔比 X%)</h4>
+    #        <p><strong>推薦原因：</strong> (說明原因與引用的績效數據)</p>
+    #    </div>
+
+    #    <div class="warm-reminder">
+    #        <strong>👨‍💼 專家溫馨提醒：</strong> (結語，提醒投資均有風險)
+    #    </div>
     """
 
     try:
