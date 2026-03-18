@@ -95,13 +95,13 @@ def get_ai_advice():
         display_strategy = "專家動態調控"
     else:
         strategy_instruction = f"""請根據客戶選擇的「{strategy}型」偏好進行配置：
-        - 積極型：以股票型/高成長基金為主。
+        - 積極型：以股票型/高成長基金為主,分析近1個月與3個月、6個月、今年以來、近1年績效」，判斷當下最適合的投資策略。
         - 平衡型：核心(防禦)與衛星(攻擊)部位應相對均衡。
         - 保守型：高度集中於核心部位(債券、收息、類全委帳戶)。"""
         display_strategy = strategy
 
     if str(fund_count) == "AI決定":
-        count_instruction = "請完全自行決定最適合的「基金配置檔數」（建議落在 2~6 檔之間即可），以達到最佳投資效率，不需要湊滿特定數量。"
+        count_instruction = "請完全自行決定最適合的「基金配置檔數」（建議落在 2~8 檔之間即可），以達到最佳投資效率，不需要湊滿特定數量。"
         display_count = "最佳"
     else:
         count_instruction = f"【強制要求】請嚴格挑選出「剛好 {fund_count} 檔」最適合的基金，不可多也不可少！"
