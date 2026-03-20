@@ -93,7 +93,7 @@ def build_ai_prompt(product_name, strategy, fund_count, funds_list):
         display_strategy = "專家動態調控"
     else:
         strategy_instruction = f"""請根據客戶選擇的「{strategy}型」偏好進行配置：
-        - 積極型：以股票型/高成長基金為主。
+        - 積極型：100%配置衛星(攻擊)部位,以股票型/高成長基金為主。
         - 平衡型：核心(防禦)與衛星(攻擊)部位應相對均衡。
         - 保守型：高度集中於核心部位(債券、收息、類全委帳戶)。"""
         display_strategy = strategy
