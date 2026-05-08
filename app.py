@@ -165,7 +165,7 @@ def get_ai_advice():
     try:
         print(f"💡 傳送資料給 AI (策略:{strategy} / 檔數:{fund_count})...")
         response = get_ai_client().models.generate_content(
-            model='gemini-3.1-flash-lite',
+            model='gemini-3-flash-preview',
             contents=prompt
         )
         print("✅ AI 分析完成！準備回傳至前端。")
