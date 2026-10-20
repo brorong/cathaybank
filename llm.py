@@ -39,7 +39,7 @@ def _call_gemini(model, prompt, api_key):
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.4, "responseMimeType": "application/json"},
     }
-    r = requests.post(url, params={"key": api_key}, json=body, timeout=TIMEOUT)
+    r = requests.post(url, headers={"x-goog-api-key": api_key}, json=body, timeout=TIMEOUT)
     if r.status_code != 200:
         raise LLMError(f"HTTP {r.status_code}: {r.text[:200]}")
     data = r.json()
@@ -75,22 +75,23 @@ def _call_openai_compatible(base_url, model, prompt, api_key, json_mode=True):
 
 
 def available_providers():
-    """回傳 [(顯示名稱, 呼叫函式)]，依優先順序排列"""
+    """回傳 [(顯示名稱, 呼叫函式)]，依優先順序排列
+    注意：金鑰必須用 k=key 在建立時綁定，否則 lambda 執行時會讀到後面被覆蓋的 key"""
     chain = []
 
     if key := _key("GEMINI_API_KEY"):
         for m in _env_list("GEMINI_MODELS", "gemini-3.5-flash,gemini-3.1-flash-lite,gemini-flash-latest"):
-            chain.append((f"Google Gemini ({m})", lambda p, m=m: _call_gemini(m, p, key)))
+            chain.append((f"Google Gemini ({m})", lambda p, m=m, k=key: _call_gemini(m, p, k)))
 
     if key := _key("GROQ_API_KEY"):
         for m in _env_list("GROQ_MODELS", "llama-3.3-70b-versatile"):
-            chain.append((f"Groq ({m})", lambda p, m=m: _call_openai_compatible(
-                "https://api.groq.com/openai/v1", m, p, key)))
+            chain.append((f"Groq ({m})", lambda p, m=m, k=key: _call_openai_compatible(
+                "https://api.groq.com/openai/v1", m, p, k)))
 
     if key := _key("OPENROUTER_API_KEY"):
         for m in _env_list("OPENROUTER_MODELS", "meta-llama/llama-3.3-70b-instruct:free"):
-            chain.append((f"OpenRouter ({m})", lambda p, m=m: _call_openai_compatible(
-                "https://openrouter.ai/api/v1", m, p, key, json_mode=False)))
+            chain.append((f"OpenRouter ({m})", lambda p, m=m, k=key: _call_openai_compatible(
+                "https://openrouter.ai/api/v1", m, p, k, json_mode=False)))
 
     return chain
 
