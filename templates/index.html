@@ -84,6 +84,40 @@
         .allocation-card p { margin: 0; font-size: 18px; }
         
         .warm-reminder { background-color: #E3F2FD; padding: 18px; border-radius: 10px; font-size: 18px; color: #0277BD; margin-top: 25px; border: 1px solid #BBDEFB; }
+        .warm-reminder small { display: block; margin-top: 8px; color: #555; font-size: 15px; }
+
+        /* 📊 AI 建議：摘要、績效、總覽 */
+        .summary-box { background: #FAFAFA; border: 1px solid #eee; border-radius: 12px; padding: 18px 22px; }
+        .summary-box p { margin: 10px 0; }
+        .split-bar { display: flex; height: 36px; border-radius: 18px; overflow: hidden; font-weight: bold; color: #fff; font-size: 16px; margin-bottom: 12px; }
+        .split-bar > div { display: flex; align-items: center; justify-content: center; white-space: nowrap; }
+        .split-core { background: #00843E; }
+        .split-sat { background: #00BFA5; }
+        .chip { display: inline-block; background: #E8F5E9; color: #00843E; border-radius: 16px; padding: 3px 12px; margin: 3px 4px; font-size: 16px; }
+        .card-head { display: flex; justify-content: space-between; align-items: center; }
+        .card-head .weight { font-size: 30px; font-weight: bold; color: #00843E; }
+        .satellite .card-head .weight { color: #00897B; }
+        .allocation-card h4 small { font-size: 16px; color: #777; font-weight: normal; }
+        .weight-bar { height: 10px; background: #e0e0e0; border-radius: 5px; margin: 6px 0 14px; overflow: hidden; }
+        .weight-bar > div { height: 100%; background: #00843E; }
+        .satellite .weight-bar > div { background: #00BFA5; }
+        .perf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(95px, 1fr)); gap: 8px; margin-bottom: 14px; }
+        .perf-item { background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; padding: 6px; text-align: center; font-size: 17px; font-weight: bold; }
+        .perf-label { display: block; font-size: 14px; color: #777; font-weight: normal; }
+        .perf-up { color: #d9534f; }
+        .perf-down { color: #2e7d32; }
+        .perf-na { color: #aaa; }
+        .section-title { color: #00843E; font-size: 22px; margin: 28px 0 10px; }
+        .summary-table { min-width: 0; font-size: 18px; }
+        .summary-table th { cursor: default; }
+        .summary-table th::after { content: none; }
+        .summary-table td { text-align: left; }
+        .summary-table td.num { text-align: right; font-weight: bold; }
+        .summary-table tr.total td { background: #F4FAF6; font-weight: bold; }
+        .exit-plan { background: #FFF8E1; border: 1px solid #FFE082; border-radius: 12px; padding: 4px 22px 14px; margin-top: 25px; }
+        .exit-plan .section-title { color: #E65100; margin-top: 14px; }
+        .risk-list { margin: 8px 0 0; padding-left: 24px; }
+        .advice-meta { text-align: right; color: #999; font-size: 14px; margin-top: 15px; }
     </style>
 </head>
 <body>
@@ -335,15 +369,15 @@
                 tbody.innerHTML += `<tr>
                     <td><strong>${f['基金代碼']}</strong></td>
                     <td>${f['基金名稱']}</td>
-                    <td>${f['一個月％'] || '-'}</td>
-                    <td>${f['三個月％'] || '-'}</td>
-                    <td>${f['六個月％'] || '-'}</td>
-                    <td>${f['今年來％'] || '-'}</td>
-                    <td>${f['一年％'] || '-'}</td>
-                    <td>${f['二年％'] || '-'}</td>
-                    <td>${f['三年％'] || '-'}</td>
-                    <td>${f['五年％'] || '-'}</td>
-                    <td style="color:#d9534f; font-weight:bold;">${f['成立來％'] || '-'}</td>
+                    <td>${f['一個月％'] ?? '-'}</td>
+                    <td>${f['三個月％'] ?? '-'}</td>
+                    <td>${f['六個月％'] ?? '-'}</td>
+                    <td>${f['今年來％'] ?? '-'}</td>
+                    <td>${f['一年％'] ?? '-'}</td>
+                    <td>${f['二年％'] ?? '-'}</td>
+                    <td>${f['三年％'] ?? '-'}</td>
+                    <td>${f['五年％'] ?? '-'}</td>
+                    <td style="color:#d9534f; font-weight:bold;">${f['成立來％'] ?? '-'}</td>
                 </tr>`;
             });
         }
@@ -354,20 +388,15 @@
             const isAuto = document.getElementById('aiAutoMode').checked;
             
             adviceDiv.style.display = 'block';
-            adviceDiv.innerHTML = "<em>⏳ 專家 AI 正在讀取龐大市場數據進行深度運算，請稍候 (約 5~10 秒)...</em>";
+            adviceDiv.innerHTML = "<em>⏳ 專家 AI 正在讀取龐大市場數據進行深度運算，請稍候 (約 10~30 秒)...</em>";
             
             aiButton.disabled = true;
             aiButton.innerText = "分析中，請稍候...";
 
-            const fundDataForAI = currentFunds.map(f => {
-                return `- ${f['基金代碼']} ${f['基金名稱']} | 近1個月:${f['一個月％']}% | 近6個月:${f['六個月％']}% | 近1年:${f['一年％']}% | 成立來:${f['成立來％']}%`;
-            }).join('\n');
-
             const payload = {
                 product: document.getElementById('productInput').value,
                 strategy: isAuto ? "AI決定" : document.getElementById('strategySelect').value,
-                fundCount: isAuto ? "AI決定" : document.getElementById('fundCountInput').value,
-                funds: fundDataForAI
+                fundCount: isAuto ? "AI決定" : document.getElementById('fundCountInput').value
             };
 
             try {
@@ -381,7 +410,10 @@
                 if(data.advice) {
                     adviceDiv.innerHTML = data.advice;
                 } else {
-                    adviceDiv.innerHTML = "<span style='color:red;'>⚠️ 分析失敗，請檢查系統日誌。</span>";
+                    const span = document.createElement('span');
+                    span.style.color = 'red';
+                    span.innerText = '⚠️ 分析失敗：' + (data.error || '請檢查系統日誌。');
+                    adviceDiv.replaceChildren(span);
                 }
             } catch (error) {
                 console.error("AI 分析失敗:", error);
